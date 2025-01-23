@@ -1,4 +1,3 @@
-// userService.ts
 import { PrismaClient } from "@prisma/client";
 import { UserData } from "@/lib/types"; // Ensure this is correct
 
@@ -33,15 +32,23 @@ export async function getUsersWithinRadius(latitude: number, longitude: number, 
       createdAt: true, // Add these fields
       latitude: true,
       longitude: true,
+      status: true, // Ensure status is included
       followers: {
         select: {
           followerId: true,
+        },
+      },
+      joins: { // Ensure joins is included if it's part of your User model
+        select: {
+          userId: true,
+          eventId: true,
         },
       },
       _count: {
         select: {
           posts: true,
           followers: true,
+          joins: true, // Count of joins if necessary
         },
       },
     },
