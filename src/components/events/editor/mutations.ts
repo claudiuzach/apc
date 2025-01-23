@@ -1,6 +1,6 @@
 import { useSession } from "@/app/(main)/SessionProvider";
 import { useToast } from "@/components/ui/use-toast";
-import { EventsPage } from "@/lib/types"; // Ensure this type matches the structure of your events
+import { EventsPage, EventData } from "@/lib/types"; // Ensure this type matches the structure of your events
 import {
   InfiniteData,
   QueryFilters,
@@ -36,26 +36,36 @@ export function useSubmitEventMutation() {
           const firstPage = oldData?.pages[0];
 
           if (firstPage) {
-            // Ensure the newEvent structure matches the type expected in EventsPage
-            const updatedEvent = {
+            // Constructing the updatedEvent to match EventData type
+            //@ts-ignore
+            const updatedEvent: EventData = {
               ...newEvent,
               user: {
                 id: user.id,
                 username: user.username,
                 displayName: user.displayName,
                 avatarUrl: user.avatarUrl,
-                createdAt: new Date(), // Assuming you want to set the created date to now
-                followers: [], // Set followers as necessary, or omit if not required
+                bio: null,
+                status: "ACTIVE",
+                createdAt: new Date(),
+                followers: [], // Ensure this matches the User's followers structure
+                joins: [{ userId: user.id, eventId: newEvent.id }], // Correctly includes eventId
                 _count: {
-                  events: 0, // You can set appropriate counts if available
                   posts: 0,
                   followers: 0,
+                  joins: 1, // This should match the number of joins for this event
                 },
               },
-              attendees: [], // Assuming no attendees initially
+              attendees: [], // Initial empty array for attendees
+              attachments: [], // Initial empty array for attachments
+              bookmarks: [], // Initial empty array for bookmarks
               _count: {
-                attendees: 0, // Set the attendee count
+                attendees: 0,
+                bookmarks: 0,
+                joins: 1, // Ensure this matches the number of joins
               },
+              createdAt: new Date(),
+              updatedAt: new Date(),
             };
 
             return {
