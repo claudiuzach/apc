@@ -72,6 +72,7 @@ export async function GET(req: NextRequest) {
           username,
           displayName: googleUser.name,
           googleId: googleUser.id,
+          memberNumber: "someDefaultValue", // Provide a value for memberNumber
         },
       });
       await streamServerClient.upsertUser({
