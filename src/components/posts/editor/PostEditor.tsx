@@ -43,7 +43,7 @@ export default function PostEditor() {
         italic: false,
       }),
       Placeholder.configure({
-        placeholder: "What's crack-a-lackin'?",
+        placeholder: "Write a post for your APC members",
       }),
     ],
   });

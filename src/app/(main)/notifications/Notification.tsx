@@ -29,6 +29,11 @@ export default function Notification({ notification }: NotificationProps) {
       icon: <Heart className="size-7 fill-red-500 text-red-500" />,
       href: `/posts/${notification.postId}`,
     },
+    JOIN: {
+      message: ` JOINED your EVENT`,
+      icon: <Heart className="size-7 fill-red-500 text-red-500" />,
+      href: `/events/${notification.eventId}`,
+    },
   };
 
   const { message, icon, href } = notificationTypeMap[notification.type];

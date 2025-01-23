@@ -10,7 +10,7 @@ import { redirect } from "next/navigation";
 
 export async function login(
   credentials: LoginValues,
-): Promise<{ error: string }> {
+): Promise<{ error?: string }> { // Made error optional to align with usage
   try {
     const { username, password } = loginSchema.parse(credentials);
 
@@ -23,12 +23,26 @@ export async function login(
       },
     });
 
+    // Check if user exists and has a password
     if (!existingUser || !existingUser.passwordHash) {
       return {
         error: "Incorrect username or password",
       };
     }
 
+    // Check user status and return appropriate messages
+    if (existingUser.status === "PENDING") {
+      return {
+        error: "Your account is pending verification. Please wait for approval.",
+      };
+    }
+    if (existingUser.status === "REJECTED") {
+      return {
+        error: "Your account has been rejected. Contact support for assistance.",
+      };
+    }
+
+    // Verify password
     const validPassword = await verify(existingUser.passwordHash, password, {
       memoryCost: 19456,
       timeCost: 2,
@@ -42,6 +56,7 @@ export async function login(
       };
     }
 
+    // Create session and set cookie
     const session = await lucia.createSession(existingUser.id, {});
     const sessionCookie = lucia.createSessionCookie(session.id);
     cookies().set(
@@ -50,7 +65,7 @@ export async function login(
       sessionCookie.attributes,
     );
 
-    return redirect("/");
+    return {}; // Return empty object on success, indicating no errors
   } catch (error) {
     if (isRedirectError(error)) throw error;
     console.error(error);
@@ -59,3 +74,4 @@ export async function login(
     };
   }
 }
+

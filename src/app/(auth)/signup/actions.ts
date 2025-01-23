@@ -4,17 +4,17 @@ import { lucia } from "@/auth";
 import prisma from "@/lib/prisma";
 import streamServerClient from "@/lib/stream";
 import { signUpSchema, SignUpValues } from "@/lib/validation";
+import { sendWelcomeEmail } from "@/utils/email";
 import { hash } from "@node-rs/argon2";
 import { generateIdFromEntropySize } from "lucia";
 import { isRedirectError } from "next/dist/client/components/redirect";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 
 export async function signUp(
   credentials: SignUpValues,
-): Promise<{ error: string }> {
+): Promise<{ error?: string }> {
   try {
-    const { username, email, password } = signUpSchema.parse(credentials);
+    const { username, memberNumber, email, password, state } = signUpSchema.parse(credentials);
 
     const passwordHash = await hash(password, {
       memoryCost: 19456,
@@ -25,6 +25,7 @@ export async function signUp(
 
     const userId = generateIdFromEntropySize(10);
 
+    // Check for existing users
     const existingUsername = await prisma.user.findFirst({
       where: {
         username: {
@@ -37,6 +38,21 @@ export async function signUp(
     if (existingUsername) {
       return {
         error: "Username already taken",
+      };
+    }
+
+    const existingMemberNumber = await prisma.user.findFirst({
+      where: {
+        memberNumber: {
+          equals: memberNumber,
+          mode: "insensitive",
+        },
+      },
+    });
+
+    if (existingMemberNumber) {
+      return {
+        error: "Member already exists",
       };
     }
 
@@ -60,17 +76,24 @@ export async function signUp(
         data: {
           id: userId,
           username,
+          memberNumber,
           displayName: username,
           email,
           passwordHash,
+          state,
+          status: "PENDING",
+          role: "MEMBER",
         },
       });
+      
       await streamServerClient.upsertUser({
         id: userId,
         username,
         name: username,
       });
     });
+
+    await sendWelcomeEmail(email, username);
 
     const session = await lucia.createSession(userId, {});
     const sessionCookie = lucia.createSessionCookie(session.id);
@@ -80,9 +103,8 @@ export async function signUp(
       sessionCookie.attributes,
     );
 
-    return redirect("/");
+    return { error: undefined }; // Ensure no redirection here
   } catch (error) {
-    if (isRedirectError(error)) throw error;
     console.error(error);
     return {
       error: "Something went wrong. Please try again.",

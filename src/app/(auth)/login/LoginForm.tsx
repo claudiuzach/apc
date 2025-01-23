@@ -18,8 +18,7 @@ import { useForm } from "react-hook-form";
 import { login } from "./actions";
 
 export default function LoginForm() {
-  const [error, setError] = useState<string>();
-
+  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const form = useForm<LoginValues>({
@@ -30,11 +29,42 @@ export default function LoginForm() {
     },
   });
 
+  async function updateLocation() {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          try {
+            await fetch("/api/update-location", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ latitude, longitude }),
+            });
+          } catch (error) {
+            console.error("Failed to update location:", error);
+          }
+        },
+        (error) => {
+          console.error("Error getting location:", error.message);
+        }
+      );
+    } else {
+      console.error("Geolocation is not supported by this browser.");
+    }
+  }
+
   async function onSubmit(values: LoginValues) {
-    setError(undefined);
+    setError(null); // Reset error state
     startTransition(async () => {
-      const { error } = await login(values);
-      if (error) setError(error);
+      const result = await login(values); // Perform login
+      if (result.error) {
+        setError(result.error); // Set error from login response
+      } else {
+        // Reset form values on successful login
+        form.reset();
+        // If login is successful, update the location
+        await updateLocation();
+      }
     });
   }
 
@@ -71,6 +101,7 @@ export default function LoginForm() {
         <LoadingButton loading={isPending} type="submit" className="w-full">
           Log in
         </LoadingButton>
+        {isPending && <p className="text-center">Logging in...</p>} {/* Optional loading message */}
       </form>
     </Form>
   );

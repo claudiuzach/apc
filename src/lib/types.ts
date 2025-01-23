@@ -8,6 +8,7 @@ export function getUserDataSelect(loggedInUserId: string) {
     avatarUrl: true,
     bio: true,
     createdAt: true,
+    status: true, // Add the status field
     followers: {
       where: {
         followerId: loggedInUserId,
@@ -16,18 +17,101 @@ export function getUserDataSelect(loggedInUserId: string) {
         followerId: true,
       },
     },
+    joins: {
+      where: {
+        userId: loggedInUserId,
+      },
+      select: {
+        userId: true,
+        eventId: true,
+      },
+    },
     _count: {
       select: {
         posts: true,
         followers: true,
+        joins: true, // Include joins count here
       },
     },
   } satisfies Prisma.UserSelect;
 }
 
+
+// Update UserData to reflect the correct structure
 export type UserData = Prisma.UserGetPayload<{
   select: ReturnType<typeof getUserDataSelect>;
-}>;
+}> & {
+  joins: { userId: string; eventId: string }[]; // Ensure joins is included in UserData
+};
+
+export function getEventDataInclude(loggedInUserId: string) {
+  return {
+    // Include event creator details
+    user: {
+      select: getUserDataSelect(loggedInUserId), // Select user details including joins
+    },
+    // Include attendees and their details
+    attendees: {
+      include: {
+        user: {
+          select: getUserDataSelect(loggedInUserId), // Include detailed user info for each attendee
+        },
+      },
+    },
+    // Include attachments for the event
+    attachments: {
+      select: {
+        id: true,
+        type: true,
+        url: true,
+      },
+    },
+    // Include bookmarks to determine if the logged-in user has bookmarked the event
+    bookmarks: {
+      where: {
+        userId: loggedInUserId,
+      },
+      select: {
+        userId: true,
+      },
+    },
+    // Include join information to see if the logged-in user has joined the event
+    joins: {
+      where: {
+        userId: loggedInUserId,
+      },
+      select: {
+        userId: true,
+        eventId: true,
+      },
+    },
+    // Include counts for attendees, bookmarks, and joins
+    _count: {
+      select: {
+        attendees: true, // Count of attendees
+        bookmarks: true, // Count of bookmarks
+        joins: true, // Count of joins
+      },
+    },
+  } satisfies Prisma.EventInclude;
+}
+
+// Update EventData to ensure joins are included
+export type EventData = Prisma.EventGetPayload<{
+  include: ReturnType<typeof getEventDataInclude>;
+}> & {
+  joins: { userId: string; eventId: string }[]; // Ensure joins is included in EventData
+};
+
+export interface JoinInfo {
+  joins: number;        // Total number of users who joined the event
+  isJoinedByUser: boolean; // Whether the current user has joined the event
+}
+
+export interface EventsPage {
+  events: EventData[];
+  nextCursor: string | null;
+}
 
 export function getPostDataInclude(loggedInUserId: string) {
   return {
@@ -123,7 +207,10 @@ export interface LikeInfo {
 export interface BookmarkInfo {
   isBookmarkedByUser: boolean;
 }
-
+export interface JoinInfo {
+  joins: number;        // Total number of users who joined the event
+  isJoinedByUser: boolean; // Whether the current user has joined the event
+}
 export interface NotificationCountInfo {
   unreadCount: number;
 }
@@ -131,3 +218,23 @@ export interface NotificationCountInfo {
 export interface MessageCountInfo {
   unreadCount: number;
 }
+
+// lib/types.ts
+export interface User {
+  id: string; // Unique identifier for the user
+  username: string; // Username of the user
+  displayName: string; // Display name of the user
+  avatarUrl: string | null; // URL of the user's avatar
+  latitude: number | null; // User's latitude
+  longitude: number | null; // User's longitude
+  status: "ACTIVE" | "PENDING" | "REJECTED"; // Include status in the user type
+
+}
+
+
+export interface Media {
+  id: string;         // Unique identifier for the media
+  type: "IMAGE" | "VIDEO"; // Type of media
+  url: string;       // URL to the media
+}
+

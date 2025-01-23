@@ -19,8 +19,13 @@ model User {
   id                    String         @id
   username              String         @unique
   displayName           String
+  memberNumber          String         @unique
   email                 String?        @unique
+  latitude              Float?
+  longitude             Float?
   passwordHash          String?
+  passwordResetToken    String?  // Nullable field for reset token
+  tokenExpiry           DateTime? // Nullable field for token expiration
   googleId              String?        @unique
   avatarUrl             String?
   bio                   String?
@@ -30,13 +35,50 @@ model User {
   followers             Follow[]       @relation("Followers")
   likes                 Like[]
   bookmarks             Bookmark[]
+  status                UserStatus @default(PENDING) // Tracks if the user is approved/rejected
+  role                  UserRole   @default(MEMBER)  // Default role is MEMBER
+  state                 String? // Optional field for state-based approval by state manager
   comments              Comment[]
   receivedNotifications Notification[] @relation("Recipient")
   issuedNotifications   Notification[] @relation("Issuer")
+  events                Event[]        @relation("UserEvents") // New relation for events created by the user
+  joins                 Join[]         // New relation for events the user has joined
+  attendees             Attendee[] 
+  eventBookmarks        EventBookmark[] // New field for event bookmarks
 
   createdAt DateTime @default(now())
 
   @@map("users")
+}
+
+model Event {
+  id          String       @id @default(cuid())
+  title       String
+  content     String
+  date        DateTime
+  userId      String
+  user        User         @relation("UserEvents", fields: [userId], references: [id], onDelete: Cascade) // Relation to the User model
+  joins       Join[]       // Relation to track users who joined the event
+  attachments Media[]      @relation("EventAttachments") // Add this relation
+  attendees   Attendee[]   // Relation to track event attendees
+  bookmarks    EventBookmark[] // Relation for bookmarks
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("events") // Map to the correct table name in the database
+}
+
+
+model Join {
+  id      String @id @default(cuid())
+  userId  String
+  eventId String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade) // Relation to the User model
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade) // Relation to the Event model
+
+  @@unique([userId, eventId]) // Ensure a user can join an event only once
+  @@map("joins")
 }
 
 model Session {
@@ -77,7 +119,11 @@ model Post {
 model Media {
   id     String    @id @default(cuid())
   postId String?
+  eventId  String? // Add this field for event relation
+
   post   Post?     @relation(fields: [postId], references: [id], onDelete: SetNull)
+  event    Event?  @relation("EventAttachments", fields: [eventId], references: [id], onDelete: SetNull)
+
   type   MediaType
   url    String
 
@@ -89,6 +135,18 @@ model Media {
 enum MediaType {
   IMAGE
   VIDEO
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+}
+
+enum UserRole {
+  ADMIN
+  STATE_MANAGER
+  MEMBER
 }
 
 model Comment {
@@ -127,6 +185,9 @@ model Bookmark {
   @@map("bookmarks")
 }
 
+
+
+
 model Notification {
   id          String           @id @default(cuid())
   recipientId String
@@ -137,6 +198,8 @@ model Notification {
   post        Post?            @relation(fields: [postId], references: [id], onDelete: Cascade)
   type        NotificationType
   read        Boolean          @default(false)
+  eventId     String?          // Add this line to include the eventId
+
 
   createdAt DateTime @default(now())
 
@@ -147,4 +210,28 @@ enum NotificationType {
   LIKE
   FOLLOW
   COMMENT
+  JOIN
+}
+
+
+model Attendee {
+  id      String   @id @default(cuid())
+  eventId String
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@map("attendees")
+}
+
+model EventBookmark {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  userId    String
+  eventId   String
+  user      User     @relation(fields: [userId], references: [id])
+  event     Event    @relation(fields: [eventId], references: [id])
+
+  @@unique([userId, eventId])
 }
