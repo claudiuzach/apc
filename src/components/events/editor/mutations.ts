@@ -1,13 +1,13 @@
 import { useSession } from "@/app/(main)/SessionProvider";
 import { useToast } from "@/components/ui/use-toast";
-import { EventsPage, EventData } from "@/lib/types"; // Ensure this type matches the structure of your events
+import { EventsPage, EventData } from "@/lib/types";
 import {
   InfiniteData,
   QueryFilters,
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { submitEvent } from "./actions"; // Ensure this points to your event submission function
+import { submitEvent } from "./actions";
 
 export function useSubmitEventMutation() {
   const { toast } = useToast();
@@ -17,16 +17,21 @@ export function useSubmitEventMutation() {
   const mutation = useMutation({
     mutationFn: submitEvent,
     onSuccess: async (newEvent) => {
-      const queryFilter = {
+      const queryFilter: QueryFilters<
+        InfiniteData<EventsPage, string | null>,
+        Error,
+        InfiniteData<EventsPage, string | null>,
+        readonly unknown[]
+      > = {
         queryKey: ["event-feed"],
-        predicate(query) {
+        predicate: (query) => {
           return (
             query.queryKey.includes("events") ||
             (query.queryKey.includes("user-events") &&
               query.queryKey.includes(user.id))
           );
         },
-      } satisfies QueryFilters;
+      };
 
       await queryClient.cancelQueries(queryFilter);
 
@@ -36,43 +41,45 @@ export function useSubmitEventMutation() {
           const firstPage = oldData?.pages[0];
 
           if (firstPage) {
-            // Constructing the updatedEvent to match EventData type
-            //@ts-ignore
-            const updatedEvent: EventData = {
+          
+// @ts-ignore
+const updatedEvent: EventData = {
               ...newEvent,
               user: {
                 id: user.id,
                 username: user.username,
                 displayName: user.displayName,
                 avatarUrl: user.avatarUrl,
-                bio: null,
-                status: "ACTIVE",
-                createdAt: new Date(),
-                followers: [], // Ensure this matches the User's followers structure
-                joins: [{ userId: user.id, eventId: newEvent.id }], // Correctly includes eventId
+                bio: null, // Assuming bio can be null
+                status: "ACTIVE", // Ensure status is of the correct type
+                createdAt: new Date(), // Use appropriate date
+                followers: [], // Ensure this aligns with your User type structure
+                joins: [{ userId: user.id, eventId: newEvent.id }], // Correctly structure joins
                 _count: {
-                  posts: 0,
+                  posts: 0, // Adjust based on your application logic
                   followers: 0,
-                  joins: 1, // This should match the number of joins for this event
+                  joins: 1, // Adjust to reflect the actual number of joins
                 },
               },
-              attendees: [], // Initial empty array for attendees
-              attachments: [], // Initial empty array for attachments
-              bookmarks: [], // Initial empty array for bookmarks
+              attendees: [], // Adjust based on your application logic
+              attachments: [], // Adjust based on your application logic
+              bookmarks: [], // Adjust based on your application logic
               _count: {
-                attendees: 0,
-                bookmarks: 0,
-                joins: 1, // Ensure this matches the number of joins
+                attendees: 0, // Adjust as necessary
+                bookmarks: 0, // Adjust as necessary
+                joins: 1, // Update if necessary
               },
-              createdAt: new Date(),
-              updatedAt: new Date(),
+              createdAt: new Date(), // Adjust if the date comes from newEvent
+              updatedAt: new Date(), // Include if necessary
+              date: newEvent.date, // Ensure this field is provided if it's part of newEvent
             };
+            
 
             return {
               pageParams: oldData.pageParams,
               pages: [
                 {
-                  events: [updatedEvent, ...firstPage.events], // Add new event to the first page
+                  events: [updatedEvent, ...firstPage.events],
                   nextCursor: firstPage.nextCursor,
                 },
                 ...oldData.pages.slice(1),
@@ -80,19 +87,19 @@ export function useSubmitEventMutation() {
             };
           }
 
-          return oldData; // Return old data if firstPage is not available
+          return oldData;
         },
       );
 
       queryClient.invalidateQueries({
         queryKey: queryFilter.queryKey,
-        predicate(query) {
-          return queryFilter.predicate(query) && !query.state.data;
+        predicate: (query) => {
+          return queryFilter.predicate ? queryFilter.predicate(query as any) : false && !query.state.data;
         },
       });
 
       toast({
-        description: "Event created",
+        description: "Event created successfully",
       });
     },
     onError(error) {

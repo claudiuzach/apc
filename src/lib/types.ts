@@ -96,12 +96,12 @@ export function getEventDataInclude(loggedInUserId: string) {
   } satisfies Prisma.EventInclude;
 }
 
-// Update EventData to ensure joins are included
 export type EventData = Prisma.EventGetPayload<{
   include: ReturnType<typeof getEventDataInclude>;
 }> & {
   joins: { userId: string; eventId: string }[]; // Ensure joins is included in EventData
 };
+
 
 export interface JoinInfo {
   joins: number;        // Total number of users who joined the event
