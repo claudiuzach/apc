@@ -1,6 +1,7 @@
 import { PostsPage } from "@/lib/types";
 import {
   InfiniteData,
+  Query,
   QueryFilters,
   useMutation,
   useQueryClient,
@@ -11,23 +12,41 @@ import { deletePost } from "./actions";
 
 export function useDeletePostMutation() {
   const { toast } = useToast();
-
   const queryClient = useQueryClient();
-
   const router = useRouter();
   const pathname = usePathname();
 
   const mutation = useMutation({
     mutationFn: deletePost,
     onSuccess: async (deletedPost) => {
-      const queryFilter: QueryFilters = { queryKey: ["post-feed"] };
+      const queryFilter: QueryFilters<
+        InfiniteData<PostsPage, string | null>, // Data type
+        Error, // Error type
+        InfiniteData<PostsPage, string | null>, // Variables type
+        readonly unknown[] // QueryKey type
+      > = {
+        queryKey: ["post-feed"],
+        predicate: (
+          query: Query<
+            InfiniteData<PostsPage, string | null>, // Data type
+            Error, // Error type
+            InfiniteData<PostsPage, string | null>, // Variables type
+            readonly unknown[] // QueryKey type
+          >
+        ): boolean => {
+          // Explicitly return a boolean
+          return query.queryKey.includes("post-feed");
+        },
+      };
 
+      // Cancel matching queries
       await queryClient.cancelQueries(queryFilter);
 
+      // Update the cache for matching queries
       queryClient.setQueriesData<InfiniteData<PostsPage, string | null>>(
         queryFilter,
         (oldData) => {
-          if (!oldData) return;
+          if (!oldData) return undefined;
 
           return {
             pageParams: oldData.pageParams,
@@ -36,8 +55,20 @@ export function useDeletePostMutation() {
               posts: page.posts.filter((p) => p.id !== deletedPost.id),
             })),
           };
-        },
+        }
       );
+
+      // Invalidate queries where `predicate` is true
+      queryClient.invalidateQueries({
+        queryKey: queryFilter.queryKey,
+        predicate: (query) =>
+          queryFilter.predicate?.(query as Query<
+            InfiniteData<PostsPage, string | null>,
+            Error,
+            InfiniteData<PostsPage, string | null>,
+            readonly unknown[]
+          >) ?? false, // Safely handle `undefined` predicate
+      });
 
       toast({
         description: "Post deleted",
