@@ -11,7 +11,17 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "utfs.io",
-        pathname: `/a/${process.env.NEXT_PUBLIC_UPLOADTHING_APP_ID}/*`,
+        pathname: "/a/*", // Matches paths for "utfs.io"
+      },
+      {
+        protocol: "https",
+        hostname: "*.ufs.sh", // Allows any subdomain of "ufs.sh"
+        pathname: "/**", // Matches all paths for "*.ufs.sh"
+      },
+      {
+        protocol: "https",
+        hostname: "pkyr6lvk95.ufs.sh", // Explicitly add your image host
+        pathname: "/**", // Matches all paths on this hostname
       },
     ],
   },
