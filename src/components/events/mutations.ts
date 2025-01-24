@@ -20,24 +20,21 @@ export function useDeleteEventMutation() {
   const mutation = useMutation({
     mutationFn: deleteEvent,
     onSuccess: async (deletedEvent) => {
-      const queryFilter: QueryFilters = { queryKey: ["event-feed"] };
+      const queryFilter: QueryFilters<InfiniteData<EventsPage, string | null>, Error, InfiniteData<EventsPage, string | null>, readonly unknown[]> = { queryKey: ["event-feed"] };
 
       await queryClient.cancelQueries(queryFilter);
 
-      queryClient.setQueriesData<InfiniteData<EventsPage, string | null>>(
-        queryFilter,
-        (oldData) => {
-          if (!oldData) return;
+      queryClient.setQueriesData<InfiniteData<EventsPage, string | null>>(queryFilter, (oldData) => {
+        if (!oldData) return;
 
-          return {
-            pageParams: oldData.pageParams,
-            pages: oldData.pages.map((page) => ({
-              nextCursor: page.nextCursor,
-              events: page.events.filter((e) => e.id !== deletedEvent.id),
-            })),
-          };
-        },
-      );
+        return {
+          pageParams: oldData.pageParams,
+          pages: oldData.pages.map((page) => ({
+            nextCursor: page.nextCursor,
+            events: page.events.filter((e) => e.id !== deletedEvent.id),
+          })),
+        };
+      });
 
       toast({
         description: "Event deleted",
@@ -56,10 +53,5 @@ export function useDeleteEventMutation() {
     },
   });
 
-  
-
   return mutation;
 }
-
-
-
