@@ -15,7 +15,7 @@ const nextConfig = {
       },
       {
         protocol: "https",
-        hostname: "pkyr6lvk95.ufs.sh", // Add the specific hostname
+        hostname: "**.ufs.sh", // Wildcard for subdomains
         pathname: "/**", // Allow all paths
       },
     ],
