@@ -6,7 +6,7 @@ import { Bookmark, Clipboard, Home, MapPin } from "lucide-react"; // Import the 
 import Link from "next/link";
 import MessagesButton from "./MessagesButton";
 import NotificationsButton from "./NotificationsButton";
-import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel"; // Assuming Carousel is imported from ShadCN
+import MobileMenu from "./MobileMenu"; // Import your new MobileMenu component
 
 interface MenuBarProps {
   className?: string;
@@ -29,88 +29,13 @@ export default async function MenuBar({ className }: MenuBarProps) {
 
   return (
     <div className={className}>
-      {/* Mobile Carousel (only for small screens) */}
+      {/* Mobile Menu (only for small screens) */}
       <div className="lg:hidden">
-        <Carousel>
-          <CarouselContent className="gap-0"> {/* Removed gap for tighter spacing */}
-            <CarouselItem className="basis-1/4"> {/* Adjusted to show 4 items */}
-              <Button
-                variant="ghost"
-                className="flex items-center justify-start gap-3"
-                title="Home"
-                asChild
-              >
-                <Link href="/">
-                  <Home />
-                  <span className="hidden lg:inline">Home</span>
-                </Link>
-              </Button>
-            </CarouselItem>
-            <CarouselItem className="basis-1/4"> {/* Adjusted to show 4 items */}
-              <NotificationsButton
-                initialState={{ unreadCount: unreadNotificationsCount }}
-              />
-            </CarouselItem>
-            <CarouselItem className="basis-1/4"> {/* Adjusted to show 4 items */}
-              <MessagesButton initialState={{ unreadCount: unreadMessagesCount }} />
-            </CarouselItem>
-            <CarouselItem className="basis-1/4"> {/* Adjusted to show 4 items */}
-              <Button
-                variant="ghost"
-                className="flex items-center justify-start gap-3"
-                title="Bookmarks"
-                asChild
-              >
-                <Link href="/bookmarks">
-                  <Bookmark />
-                  <span className="hidden lg:inline">Bookmarks</span>
-                </Link>
-              </Button>
-            </CarouselItem>
-            <CarouselItem className="basis-1/4"> {/* Adjusted to show 4 items */}
-              <Button
-                variant="ghost"
-                className="flex items-center justify-start gap-3"
-                title="Nearby Members"
-                asChild
-              >
-                <Link href="/nearbyUsers">
-                  <MapPin />
-                  <span className="hidden lg:inline">Nearby Members</span>
-                </Link>
-              </Button>
-            </CarouselItem>
-            <CarouselItem className="basis-1/4"> {/* Adjusted to show 4 items */}
-              <Button
-                variant="ghost"
-                className="flex items-center justify-start gap-3"
-                title="Events"
-                asChild
-              >
-                <Link href="/events">
-                  <Clipboard />
-                  <span className="hidden lg:inline">Events</span>
-                </Link>
-              </Button>
-            </CarouselItem>
-            {/* Add Approvals link for admins */}
-            {user.role === "ADMIN" && ( // Adjust according to your UserRole enum value
-              <CarouselItem className="basis-1/4"> {/* Adjusted to show 4 items */}
-                <Button
-                  variant="ghost"
-                  className="flex items-center justify-start gap-3"
-                  title="Approvals"
-                  asChild
-                >
-                  <Link href="/approvals">
-                    <Clipboard />
-                    <span className="hidden lg:inline">Approvals</span>
-                  </Link>
-                </Button>
-              </CarouselItem>
-            )}
-          </CarouselContent>
-        </Carousel>
+        <MobileMenu
+          unreadNotificationsCount={unreadNotificationsCount}
+          unreadMessagesCount={unreadMessagesCount}
+          isAdmin={user.role === "ADMIN"} // Assuming user.role gives the user role
+        />
       </div>
 
       {/* Desktop version (unchanged vertical layout) */}
@@ -165,7 +90,7 @@ export default async function MenuBar({ className }: MenuBarProps) {
         </Button>
 
         {/* Add Approvals link for admins */}
-        {user.role === "ADMIN" && ( // Adjust according to your UserRole enum value
+        {user.role === "ADMIN" && (
           <Button
             variant="ghost"
             className="flex items-center justify-start gap-3"
