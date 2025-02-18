@@ -73,24 +73,48 @@ export default function ApprovalsPage() {
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const { toast } = useToast();
   const [stateCounts, setStateCounts] = useState<StateCount[]>([]);
+  const [mounted, setMounted] = useState(false);
+
+   useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
+    if (!mounted) return;
+
     async function loadData() {
-      const currentUser = await getCurrentUser();
-      if (currentUser.error || currentUser.role !== UserRole.ADMIN) {
-        redirect('/unauthorized');
+      try {
+        const currentUserResponse = await fetch('/api/get-current-user');
+        if (!currentUserResponse.ok) throw new Error('Failed to fetch user');
+        const currentUser = await currentUserResponse.json();
+
+        if (currentUser.error || currentUser.role !== UserRole.ADMIN) {
+          redirect('/unauthorized');
+        }
+
+        const [usersDataResponse, statesDataResponse] = await Promise.all([
+          fetch('/api/users'),
+          fetch('/api/state-counts'),
+        ]);
+
+        if (!usersDataResponse.ok || !statesDataResponse.ok) {
+          throw new Error('Failed to fetch data');
+        }
+
+        const usersData = await usersDataResponse.json();
+        const statesData = await statesDataResponse.json();
+
+        setStateCounts(statesData);
+        setUsers(usersData.filter((user: User) => user.status === UserStatus.PENDING || user.status === UserStatus.REJECTED));
+      } catch (error) {
+        console.error('Error loading data:', error);
+      } finally {
+        setLoading(false);
       }
-
-      const usersData = await fetchUsers();
-      const statesData = await fetchStateCounts();
-      setStateCounts(statesData);
-
-      const filteredUsers = usersData.filter(user => user.status === UserStatus.PENDING || user.status === UserStatus.REJECTED);
-      setUsers(filteredUsers);
-      setLoading(false);
     }
+
     loadData();
-  }, []);
+  }, [mounted]);
 
   const handleChange = (userId: string, status: UserStatus, role: UserRole) => {
     setUpdatedUsers(prev => ({
@@ -139,15 +163,16 @@ export default function ApprovalsPage() {
     }
   };
 
-  if (loading) return <div className="text-center text-lg font-semibold">Loading...</div>;
-
+  if (!mounted || loading) {
+    return <p className="text-center text-lg font-semibold">Loading...</p>;
+  }
   return (
     <div className="p-4 max-w-[1200px] mx-auto">
       <h1 className="text-3xl font-bold mb-6 text-center text-gray-900 dark:text-white">Approvals & User Analytics</h1>
 
       {/* ✅ MOBILE VERSION - User Approvals as Cards */}
       <div className="block md:hidden">
-        {users.map(user => (
+        {users?.length > 0 ? users.map(user => (
           <div key={user.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg mb-4">
             <h2 className="text-lg font-bold text-gray-900 dark:text-white">{user.username}</h2>
             <p className="text-sm text-gray-600 dark:text-gray-300">Email: {user.email || "N/A"}</p>
@@ -156,8 +181,8 @@ export default function ApprovalsPage() {
             <div className="mt-2">
               <label className="block text-sm font-semibold">Status:</label>
               <select
-                value={updatedUsers[user.id]?.status || user.status}
-                onChange={e => handleChange(user.id, e.target.value as UserStatus, user.role)}
+value={updatedUsers[user.id]?.status || user.status || UserStatus.PENDING}
+onChange={e => handleChange(user.id, e.target.value as UserStatus, user.role)}
                 className="w-full p-2 border rounded bg-background text-foreground"
               >
                 <option value={UserStatus.ACTIVE}>Active</option>
@@ -175,7 +200,7 @@ export default function ApprovalsPage() {
               </Button>
             </div>
           </div>
-        ))}
+        )):<p className='text-center'> No users found</p>}
       </div>
 
       {/* ✅ DESKTOP VERSION - Approvals Table */}
@@ -200,8 +225,8 @@ export default function ApprovalsPage() {
                 
                 <TableCell>
                     <select
-                      value={updatedUsers[user.id]?.status || user.status}
-                      onChange={e => handleChange(user.id, e.target.value as UserStatus, user.role)}
+value={updatedUsers[user.id]?.status || user.status || UserStatus.PENDING}
+onChange={e => handleChange(user.id, e.target.value as UserStatus, user.role)}
                       className="border rounded p-1 w-full bg-background text-foreground"
                     >
                       <option value={UserStatus.ACTIVE}>Active Members</option>
@@ -211,7 +236,7 @@ export default function ApprovalsPage() {
                   </TableCell>
                   <TableCell>
                     <select
-                      value={updatedUsers[user.id]?.role || user.role}
+                      value={updatedUsers[user.id]?.role || user.role || UserRole.MEMBER}
                       onChange={e => handleChange(user.id, user.status, e.target.value as UserRole)}
                       className="border rounded p-1 w-full bg-background text-foreground"
                     >
@@ -269,9 +294,15 @@ export default function ApprovalsPage() {
 
 
       {/* ✅ Nigeria Map */}
-      <div className="overflow-hidden">
-        <NigeriaMap stateCounts={stateCounts} />
-      </div>
+      {/* ✅ Nigeria Map */}
+{stateCounts.length > 0 ? (
+  <div className="overflow-hidden">
+    <NigeriaMap stateCounts={stateCounts} />
+  </div>
+) : (
+  <p className="text-center text-gray-500">Loading map data...</p>
+)}
+
     </div>
   );
 }
