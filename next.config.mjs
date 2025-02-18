@@ -25,4 +25,9 @@ const nextConfig = {
   },
 };
 
+module.exports = {
+  output: "standalone", // Prevents next export issues
+  reactStrictMode: true,
+};
+
 export default nextConfig;
