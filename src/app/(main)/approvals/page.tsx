@@ -1,27 +1,20 @@
-'use client';
-import { useEffect, useState } from 'react';
-import { UserStatus, UserRole } from '@prisma/client';
-import { redirect, useRouter } from 'next/navigation';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/ui/use-toast';
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { UserStatus, UserRole } from "@prisma/client";
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Loader2 } from 'lucide-react';
-import NigeriaMap from '@/components/NigeriaMap';
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
+import { Loader2 } from "lucide-react";
+import NigeriaMap from "@/components/NigeriaMap";
 
 interface User {
   id: string;
@@ -37,25 +30,20 @@ interface StateCount {
   count: number;
 }
 
-
-
 export default function ApprovalsPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingUser, setSavingUser] = useState<string | null>(null);
-  const [updatedUsers, setUpdatedUsers] = useState<{ [key: string]: { status: UserStatus; role: UserRole } }>({});
-  const [userToDelete, setUserToDelete] = useState<User | null>(null);
-  const { toast } = useToast();
+  const [updatedUsers, setUpdatedUsers] = useState<Record<string, { status: UserStatus; role: UserRole }>>({});
   const [stateCounts, setStateCounts] = useState<StateCount[]>([]);
   const router = useRouter();
+  const { toast } = useToast();
 
-
-  
   // ✅ Fetch Data Safely
   useEffect(() => {
     async function loadData() {
       try {
-        const currentUserResponse = await fetch("/api/get-current-user");
+        const currentUserResponse = await fetch("/api/get-current-user", { cache: "no-store" });
         if (!currentUserResponse.ok) throw new Error("Failed to fetch current user");
         const currentUser = await currentUserResponse.json();
 
@@ -65,8 +53,8 @@ export default function ApprovalsPage() {
         }
 
         const [usersDataResponse, statesDataResponse] = await Promise.all([
-          fetch("/api/users"),
-          fetch("/api/state-counts"),
+          fetch("/api/users", { cache: "no-store" }),
+          fetch("/api/state-counts", { cache: "no-store" }),
         ]);
 
         if (!usersDataResponse.ok || !statesDataResponse.ok) {
@@ -86,7 +74,7 @@ export default function ApprovalsPage() {
     }
 
     loadData();
-  }, []);
+  }, [router]); // ✅ Added router as dependency to avoid unnecessary re-renders
 
   // ✅ Handle Status & Role Change
   const handleChange = (userId: string, status: UserStatus, role: UserRole) => {
@@ -98,61 +86,66 @@ export default function ApprovalsPage() {
 
   const handleSaveChanges = async (userId: string) => {
     if (!updatedUsers[userId]) return;
-  
+
     setSavingUser(userId);
     const { status, role } = updatedUsers[userId];
-    const user = users.find((u) => u.id === userId);
-  
+
     try {
       const response = await fetch(`/api/update-user`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ userId, status, role }),
       });
-  
+
       if (response.ok) {
-        setUsers(prevUsers =>
+        setUsers((prevUsers) =>
           prevUsers
-            .map(user => (user.id === userId ? { ...user, status, role } : user))
-            .filter(user => user.status !== UserStatus.ACTIVE)
+            .map((user) => (user.id === userId ? { ...user, status, role } : user))
+            .filter((user) => user.status !== UserStatus.ACTIVE)
         );
-  
-        // Show toast only for status update if changed
-        if (user?.status !== status) {
-          toast({
-            title: `User Status Updated`,
-            description:
-              status === UserStatus.ACTIVE
-                ? 'The user has been accepted. Their account is now active.'
-                : status === UserStatus.REJECTED
-                ? 'The user has been rejected. They will not be able to access the platform.'
-                : 'The user has been placed on pending. Awaiting approval.',
-          });
-        }
-  
-        // Show toast only for role update if changed
-        if (user?.role !== role) {
-          toast({
-            title: `User Role Updated`,
-            description: `The user has been assigned as ${role.toLowerCase()}.`,
-          });
-        }
+
+        toast({
+          title: `User Updated`,
+          description: `User is now ${status.toLowerCase()} and assigned as ${role.toLowerCase()}.`,
+        });
       } else {
-        throw new Error('Failed to update user');
+        throw new Error("Failed to update user");
       }
     } catch (error) {
       toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to update user. Please try again.',
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to update user. Please try again.",
       });
     } finally {
       setSavingUser(null);
     }
   };
-  
+
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      const response = await fetch(`/api/delete-user`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+
+      if (response.ok) {
+        setUsers((prevUsers) => prevUsers.filter((user) => user.id !== userId));
+        toast({ title: "User Deleted", description: "User has been removed." });
+      } else {
+        throw new Error("Failed to delete user");
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to delete user. Please try again.",
+      });
+    }
+  };
 
   if (loading) return <div className="text-center text-lg font-semibold">Loading...</div>;
 
@@ -182,10 +175,10 @@ export default function ApprovalsPage() {
             </div>
 
             <div className="mt-2">
-              <Button onClick={() => handleSaveChanges(user.id)} disabled={savingUser === user.id} className="w-full">
-                {savingUser === user.id ? <Loader2 className="animate-spin size-4" /> : "Save"}
-              </Button>
-              <Button variant="destructive" onClick={() => setUserToDelete(user)} className="w-full mt-2">
+            <Button onClick={() => handleSaveChanges(user.id)} disabled={savingUser === user.id}>
+                    {savingUser === user.id ? <Loader2 className="animate-spin size-4" /> : "Save"}
+                  </Button>
+                  <Button variant="destructive" onClick={() => handleDeleteUser(user.id)} className="ml-2">
                 Delete
               </Button>
             </div>
@@ -239,7 +232,7 @@ export default function ApprovalsPage() {
                 <Button className='mr-2' onClick={() => handleSaveChanges(user.id)} disabled={savingUser === user.id} >
                 {savingUser === user.id ? <Loader2 className="animate-spin size-4" /> : "Save"}
               </Button>                  
-              <Button variant="destructive" onClick={() => setUserToDelete(user)}>Delete</Button>
+              <Button variant="destructive" onClick={() => handleDeleteUser(user.id)}>Delete</Button>
                 </TableCell>
               </TableRow>
             ))}
