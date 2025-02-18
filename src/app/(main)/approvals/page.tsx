@@ -1,4 +1,5 @@
 "use client";
+export const dynamic = 'force-dynamic'; // ✅ Forces dynamic rendering
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -31,7 +32,6 @@ interface StateCount {
 }
 
 // **Force dynamic rendering to prevent static export errors**
-export const dynamic = "force-dynamic";
 
 export default function ApprovalsPage() {
   const [users, setUsers] = useState<User[]>([]);
