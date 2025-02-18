@@ -37,33 +37,7 @@ interface StateCount {
   count: number;
 }
 
-async function fetchUsers(): Promise<User[]> {
-  const response = await fetch('/api/users');
-  if (!response.ok) throw new Error('Failed to fetch users');
-  return response.json();
-}
 
-async function getCurrentUser() {
-  const response = await fetch('/api/get-current-user');
-  return response.json();
-}
-
-async function fetchStateCounts(): Promise<StateCount[]> {
-  const response = await fetch('/api/state-counts');
-  if (!response.ok) throw new Error('Failed to fetch state counts');
-  return response.json();
-}
-
-async function deleteUser(userId: string) {
-  const response = await fetch('/api/delete-user', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ userId }),
-  });
-  if (!response.ok) throw new Error('Failed to delete user');
-}
 
 export default function ApprovalsPage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -76,6 +50,7 @@ export default function ApprovalsPage() {
   const router = useRouter();
 
 
+  
   // ✅ Fetch Data Safely
   useEffect(() => {
     async function loadData() {
