@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/table';
 import { Loader2 } from 'lucide-react';
 import NigeriaMap from '@/components/NigeriaMap';
+import dynamic from 'next/dynamic';
 
 interface User {
   id: string;
@@ -74,6 +75,11 @@ export default function ApprovalsPage() {
   const { toast } = useToast();
   const [stateCounts, setStateCounts] = useState<StateCount[]>([]);
   const [mounted, setMounted] = useState(false);
+
+// ✅ Disable SSR for the entire map
+const DynamicNigeriaMap = dynamic(() => import("@/components/NigeriaMap"), {
+  ssr: false,
+});
 
    useEffect(() => {
     setMounted(true);
@@ -294,15 +300,9 @@ onChange={e => handleChange(user.id, e.target.value as UserStatus, user.role)}
 
 
       {/* ✅ Nigeria Map */}
-      {/* ✅ Nigeria Map */}
-{stateCounts.length > 0 ? (
-  <div className="overflow-hidden">
-    <NigeriaMap stateCounts={stateCounts} />
-  </div>
-) : (
-  <p className="text-center text-gray-500">Loading map data...</p>
-)}
-
+      <div className="overflow-hidden">
+        <DynamicNigeriaMap  stateCounts={stateCounts} />
+      </div>
     </div>
   );
 }
