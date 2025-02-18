@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { UserStatus, UserRole } from '@prisma/client';
-import { redirect } from 'next/navigation';
+import { redirect, useRouter } from 'next/navigation';
 import {
   Dialog,
   DialogContent,
@@ -73,27 +73,49 @@ export default function ApprovalsPage() {
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const { toast } = useToast();
   const [stateCounts, setStateCounts] = useState<StateCount[]>([]);
+  const router = useRouter();
 
+
+  // ✅ Fetch Data Safely
   useEffect(() => {
     async function loadData() {
-      const currentUser = await getCurrentUser();
-      if (currentUser.error || currentUser.role !== UserRole.ADMIN) {
-        redirect('/unauthorized');
+      try {
+        const currentUserResponse = await fetch("/api/get-current-user");
+        if (!currentUserResponse.ok) throw new Error("Failed to fetch current user");
+        const currentUser = await currentUserResponse.json();
+
+        if (currentUser.error || currentUser.role !== UserRole.ADMIN) {
+          router.push("/unauthorized");
+          return;
+        }
+
+        const [usersDataResponse, statesDataResponse] = await Promise.all([
+          fetch("/api/users"),
+          fetch("/api/state-counts"),
+        ]);
+
+        if (!usersDataResponse.ok || !statesDataResponse.ok) {
+          throw new Error("Failed to fetch data");
+        }
+
+        const usersData = await usersDataResponse.json();
+        const statesData = await statesDataResponse.json();
+
+        setStateCounts(statesData);
+        setUsers(usersData.filter((user: User) => user.status === UserStatus.PENDING || user.status === UserStatus.REJECTED));
+      } catch (error) {
+        console.error("Error loading data:", error);
+      } finally {
+        setLoading(false);
       }
-
-      const usersData = await fetchUsers();
-      const statesData = await fetchStateCounts();
-      setStateCounts(statesData);
-
-      const filteredUsers = usersData.filter(user => user.status === UserStatus.PENDING || user.status === UserStatus.REJECTED);
-      setUsers(filteredUsers);
-      setLoading(false);
     }
+
     loadData();
   }, []);
 
+  // ✅ Handle Status & Role Change
   const handleChange = (userId: string, status: UserStatus, role: UserRole) => {
-    setUpdatedUsers(prev => ({
+    setUpdatedUsers((prev) => ({
       ...prev,
       [userId]: { status, role },
     }));
