@@ -48,13 +48,7 @@ export default function ApprovalsPage() {
       try {
         const currentUserResponse = await fetch("/api/get-current-user", { cache: "no-store" });
         if (!currentUserResponse.ok) throw new Error("Failed to fetch current user");
-        const currentUser = await currentUserResponse.json();
-
-        if (currentUser.error || currentUser.role !== UserRole.ADMIN) {
-          router.replace("/unauthorized"); // ✅ Replaced `redirect()` with `router.replace()`
-          return;
-        }
-
+    
         const [usersDataResponse, statesDataResponse] = await Promise.all([
           fetch("/api/users", { cache: "no-store" }),
           fetch("/api/state-counts", { cache: "no-store" }),
