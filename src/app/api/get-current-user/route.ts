@@ -19,6 +19,13 @@ export async function GET() {
       email: true,
       status: true,
       role: true,
+      fullName: true,
+      phoneNumber: true,
+      memberNumber: true,
+      avatarUrl: true,
+      signature: true,
+      dateRegistered: true,
+
     },
   });
 

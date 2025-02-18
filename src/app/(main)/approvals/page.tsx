@@ -20,35 +20,40 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Loader2 } from 'lucide-react';
+import NigeriaMap from '@/components/NigeriaMap';
 
-// Define the User type
 interface User {
   id: string;
   username: string;
   email: string | null;
   status: UserStatus;
   role: UserRole;
+  state: string | null;
 }
 
-// Fetch users from the new API route
+interface StateCount {
+  state: string;
+  count: number;
+}
+
 async function fetchUsers(): Promise<User[]> {
   const response = await fetch('/api/users');
-
-  if (!response.ok) {
-    const errorMessage = await response.text();
-    throw new Error(`Failed to fetch users: ${response.status} - ${errorMessage}`);
-  }
-
+  if (!response.ok) throw new Error('Failed to fetch users');
   return response.json();
 }
 
-// Fetch the current user's role
 async function getCurrentUser() {
   const response = await fetch('/api/get-current-user');
   return response.json();
 }
 
-// Delete a user
+async function fetchStateCounts(): Promise<StateCount[]> {
+  const response = await fetch('/api/state-counts');
+  if (!response.ok) throw new Error('Failed to fetch state counts');
+  return response.json();
+}
+
 async function deleteUser(userId: string) {
   const response = await fetch('/api/delete-user', {
     method: 'POST',
@@ -57,35 +62,30 @@ async function deleteUser(userId: string) {
     },
     body: JSON.stringify({ userId }),
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`Failed to delete user: ${error.error}`);
-  }
+  if (!response.ok) throw new Error('Failed to delete user');
 }
 
 export default function ApprovalsPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [updatedUsers, setUpdatedUsers] = useState<{
-    [key: string]: { status: UserStatus; role: UserRole };
-  }>({});
+  const [savingUser, setSavingUser] = useState<string | null>(null);
+  const [updatedUsers, setUpdatedUsers] = useState<{ [key: string]: { status: UserStatus; role: UserRole } }>({});
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const { toast } = useToast();
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [stateCounts, setStateCounts] = useState<StateCount[]>([]);
 
   useEffect(() => {
     async function loadData() {
       const currentUser = await getCurrentUser();
-
       if (currentUser.error || currentUser.role !== UserRole.ADMIN) {
         redirect('/unauthorized');
       }
 
-      setCurrentUserId(currentUser.id);
-
       const usersData = await fetchUsers();
-      const filteredUsers = usersData.filter(user => user.id !== currentUser.id);
+      const statesData = await fetchStateCounts();
+      setStateCounts(statesData);
+
+      const filteredUsers = usersData.filter(user => user.status === UserStatus.PENDING || user.status === UserStatus.REJECTED);
       setUsers(filteredUsers);
       setLoading(false);
     }
@@ -93,109 +93,102 @@ export default function ApprovalsPage() {
   }, []);
 
   const handleChange = (userId: string, status: UserStatus, role: UserRole) => {
-    setUpdatedUsers((prev) => ({
+    setUpdatedUsers(prev => ({
       ...prev,
       [userId]: { status, role },
     }));
   };
 
   const handleSaveChanges = async (userId: string) => {
+    if (!updatedUsers[userId]) return;
+  
+    setSavingUser(userId);
     const { status, role } = updatedUsers[userId];
-
-    const response = await fetch(`/api/update-user`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ userId, status, role }),
-    });
-
-    if (response.ok) {
-      setUsers((prevUsers) =>
-        prevUsers.map((user) =>
-          user.id === userId ? { ...user, status, role } : user
-        )
-      );
-      setUpdatedUsers((prev) => {
-        const { [userId]: _, ...rest } = prev;
-        return rest;
-      });
-    } else {
-      console.error('Failed to update user');
-    }
-  };
-
-  const confirmDeleteUser = async () => {
-    if (!userToDelete) return;
-
+    const user = users.find((u) => u.id === userId);
+  
     try {
-      await deleteUser(userToDelete.id);
-      setUsers((prevUsers) => prevUsers.filter((user) => user.id !== userToDelete.id));
-      setUserToDelete(null);
-
-      toast({
-        title: 'User Deleted',
-        description: `The user "${userToDelete.username}" has been deleted successfully.`,
+      const response = await fetch(`/api/update-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId, status, role }),
       });
+  
+      if (response.ok) {
+        setUsers(prevUsers =>
+          prevUsers
+            .map(user => (user.id === userId ? { ...user, status, role } : user))
+            .filter(user => user.status !== UserStatus.ACTIVE)
+        );
+  
+        // Show toast only for status update if changed
+        if (user?.status !== status) {
+          toast({
+            title: `User Status Updated`,
+            description:
+              status === UserStatus.ACTIVE
+                ? 'The user has been accepted. Their account is now active.'
+                : status === UserStatus.REJECTED
+                ? 'The user has been rejected. They will not be able to access the platform.'
+                : 'The user has been placed on pending. Awaiting approval.',
+          });
+        }
+  
+        // Show toast only for role update if changed
+        if (user?.role !== role) {
+          toast({
+            title: `User Role Updated`,
+            description: `The user has been assigned as ${role.toLowerCase()}.`,
+          });
+        }
+      } else {
+        throw new Error('Failed to update user');
+      }
     } catch (error) {
-      console.error('Error deleting user:', error);
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Failed to delete user. Please try again.',
+        description: 'Failed to update user. Please try again.',
       });
+    } finally {
+      setSavingUser(null);
     }
   };
+  
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) return <div className="text-center text-lg font-semibold">Loading...</div>;
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Approvals</h1>
+    <div className="p-4 max-w-[1200px] mx-auto">
+      <h1 className="text-3xl font-bold mb-6 text-center text-gray-900 dark:text-white">Approvals & User Analytics</h1>
 
-      {/* Mobile Card Layout */}
+      {/* ✅ MOBILE VERSION - User Approvals as Cards */}
       <div className="block md:hidden">
-        {users.map((user) => (
-          <div key={user.id} className="bg-white p-4 rounded-lg shadow mb-4">
-            <h2 className="text-xl font-bold">{user.username}</h2>
-            <p>Email: {user.email}</p>
-            <p>Status: 
+        {users.map(user => (
+          <div key={user.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg mb-4">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">{user.username}</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-300">Email: {user.email || "N/A"}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-300">State: {user.state || "N/A"}</p>
+
+            <div className="mt-2">
+              <label className="block text-sm font-semibold">Status:</label>
               <select
                 value={updatedUsers[user.id]?.status || user.status}
-                onChange={(e) =>
-                  handleChange(user.id, e.target.value as UserStatus, user.role)
-                }
-                className="border rounded p-1 w-full mt-1"
+                onChange={e => handleChange(user.id, e.target.value as UserStatus, user.role)}
+                className="w-full p-2 border rounded bg-background text-foreground"
               >
                 <option value={UserStatus.ACTIVE}>Active</option>
                 <option value={UserStatus.PENDING}>Pending</option>
                 <option value={UserStatus.REJECTED}>Rejected</option>
               </select>
-            </p>
-            <p>Role: 
-              <select
-                value={updatedUsers[user.id]?.role || user.role}
-                onChange={(e) =>
-                  handleChange(user.id, user.status, e.target.value as UserRole)
-                }
-                className="border rounded p-1 w-full mt-1"
-              >
-                <option value={UserRole.ADMIN}>Admin</option>
-                <option value={UserRole.MEMBER}>Member</option>
-                <option value={UserRole.STATE_MANAGER}>State Manager</option>
-              </select>
-            </p>
-            <div className="flex space-x-2 mt-4">
-              <Button
-                onClick={() => handleSaveChanges(user.id)}
-                className="bg-blue-600 text-white"
-              >
-                Save
+            </div>
+
+            <div className="mt-2">
+              <Button onClick={() => handleSaveChanges(user.id)} disabled={savingUser === user.id} className="w-full">
+                {savingUser === user.id ? <Loader2 className="animate-spin size-4" /> : "Save"}
               </Button>
-              <Button
-                variant="destructive"
-                onClick={() => setUserToDelete(user)}
-              >
+              <Button variant="destructive" onClick={() => setUserToDelete(user)} className="w-full mt-2">
                 Delete
               </Button>
             </div>
@@ -203,55 +196,53 @@ export default function ApprovalsPage() {
         ))}
       </div>
 
-      {/* Desktop Table Layout */}
-      <div className="hidden md:block overflow-x-auto">
-        <Table>
-          <TableCaption>A list of user approvals.</TableCaption>
+      {/* ✅ DESKTOP VERSION - Approvals Table */}
+      <div className="hidden md:block overflow-x-auto bg-card rounded-lg shadow-lg p-4">
+        <Table className="w-full">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[150px]">Username</TableHead>
-              <TableHead className="w-[150px]">Email</TableHead>
-              <TableHead className="w-[150px]">Status</TableHead>
-              <TableHead className="w-[150px]">Role</TableHead>
-              <TableHead className="text-right w-[150px]">Actions</TableHead>
+              <TableHead>Username</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>State</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead className="text-center">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users.map((user) => (
-              <TableRow key={user.id} className="hover:bg-gray-100">
-                <TableCell className="font-medium">{user.username}</TableCell>
-                <TableCell>{user.email}</TableCell>
+            {users.map(user => (
+              <TableRow key={user.id}>
+                <TableCell>{user.username}</TableCell>
+                <TableCell>{user.email || "N/A"}</TableCell>
+                <TableCell>{user.state || "N/A"}</TableCell>
+                
                 <TableCell>
-                  <select
-                    value={updatedUsers[user.id]?.status || user.status}
-                    onChange={(e) =>
-                      handleChange(user.id, e.target.value as UserStatus, user.role)
-                    }
-                    className="border rounded p-1 w-full"
-                  >
-                    <option value={UserStatus.ACTIVE}>Active</option>
-                    <option value={UserStatus.PENDING}>Pending</option>
-                    <option value={UserStatus.REJECTED}>Rejected</option>
-                  </select>
-                </TableCell>
-                <TableCell>
-                  <select
-                    value={updatedUsers[user.id]?.role || user.role}
-                    onChange={(e) =>
-                      handleChange(user.id, user.status, e.target.value as UserRole)
-                    }
-                    className="border rounded p-1 w-full"
-                  >
-                    <option value={UserRole.ADMIN}>Admin</option>
-                    <option value={UserRole.MEMBER}>Member</option>
-                    <option value={UserRole.STATE_MANAGER}>State Manager</option>
-                  </select>
-                </TableCell>
+                    <select
+                      value={updatedUsers[user.id]?.status || user.status}
+                      onChange={e => handleChange(user.id, e.target.value as UserStatus, user.role)}
+                      className="border rounded p-1 w-full bg-background text-foreground"
+                    >
+                      <option value={UserStatus.ACTIVE}>Active Members</option>
+                      <option value={UserStatus.PENDING}>Pending</option>
+                      <option value={UserStatus.REJECTED}>Rejected</option>
+                    </select>
+                  </TableCell>
+                  <TableCell>
+                    <select
+                      value={updatedUsers[user.id]?.role || user.role}
+                      onChange={e => handleChange(user.id, user.status, e.target.value as UserRole)}
+                      className="border rounded p-1 w-full bg-background text-foreground"
+                    >
+                      <option value={UserRole.ADMIN}>Admin</option>
+                      <option value={UserRole.MEMBER}>Member</option>
+                      <option value={UserRole.STATE_MANAGER}>State Manager</option>
+                    </select>
+                  </TableCell>
                 <TableCell className="text-right">
-                  <div className="flex space-x-2">
-                    <Button onClick={() => handleSaveChanges(user.id)}>Save</Button>
-                    <Button variant="destructive" onClick={() => setUserToDelete(user)}>Delete</Button>
-                  </div>
+                <Button className='mr-2' onClick={() => handleSaveChanges(user.id)} disabled={savingUser === user.id} >
+                {savingUser === user.id ? <Loader2 className="animate-spin size-4" /> : "Save"}
+              </Button>                  
+              <Button variant="destructive" onClick={() => setUserToDelete(user)}>Delete</Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -259,26 +250,46 @@ export default function ApprovalsPage() {
         </Table>
       </div>
 
-      {/* ShadCN Dialog for Deletion Confirmation */}
-      <Dialog open={!!userToDelete} onOpenChange={() => setUserToDelete(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Deletion</DialogTitle>
-          </DialogHeader>
-          <p>
-            Are you sure you want to delete the user{' '}
-            <span className="font-bold">{userToDelete?.username}</span>? This action cannot be undone.
-          </p>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setUserToDelete(null)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={confirmDeleteUser}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* ✅ Members by State Table */}
+<h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-white mt-10">Number of Members by State</h2>
+
+{/* ✅ Mobile Version (Card Layout) */}
+<div className="block md:hidden mt-5">
+  {stateCounts.map((state) => (
+    <div key={state.state} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg mb-4">
+      <h3 className="text-lg font-bold text-gray-900 dark:text-white">{state.state}</h3>
+      <p className="text-sm text-gray-600 dark:text-gray-300">
+        <span className="font-semibold">Total Members:</span> {state.count}
+      </p>
+    </div>
+  ))}
+</div>
+
+{/* ✅ Desktop Version (Table Layout) */}
+<div className="hidden md:block overflow-x-auto bg-card rounded-lg shadow-lg p-4">
+  <Table className="w-full">
+    <TableHeader>
+      <TableRow>
+        <TableHead>State</TableHead>
+        <TableHead className="text-right">Total Members</TableHead>
+      </TableRow>
+    </TableHeader>
+    <TableBody>
+      {stateCounts.map((state) => (
+        <TableRow key={state.state}>
+          <TableCell>{state.state}</TableCell>
+          <TableCell className="text-right">{state.count}</TableCell>
+        </TableRow>
+      ))}
+    </TableBody>
+  </Table>
+</div>
+
+
+      {/* ✅ Nigeria Map */}
+      <div className="overflow-hidden">
+        <NigeriaMap stateCounts={stateCounts} />
+      </div>
     </div>
   );
 }

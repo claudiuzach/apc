@@ -228,6 +228,12 @@ export interface User {
   latitude: number | null; // User's latitude
   longitude: number | null; // User's longitude
   status: "ACTIVE" | "PENDING" | "REJECTED"; // Include status in the user type
+   // ✅ Add New Fields
+   fullName: string; 
+   nin: string;
+   phoneNumber: string;
+   signature?: string; // Optional field
+   dateRegistered: string; // Store as a Date string
 
 }
 

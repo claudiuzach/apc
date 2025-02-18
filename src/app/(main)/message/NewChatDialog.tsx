@@ -26,22 +26,20 @@ export default function NewChatDialog({
   onChatCreated,
 }: NewChatDialogProps) {
   const { client, setActiveChannel } = useChatContext();
-
   const { toast } = useToast();
-
   const { user: loggedInUser } = useSession();
 
   const [searchInput, setSearchInput] = useState("");
   const searchInputDebounced = useDebounce(searchInput);
-
   const [selectedUsers, setSelectedUsers] = useState<
     UserResponse<DefaultStreamChatGenerics>[]
   >([]);
 
+  // 🔹 Fetch Users from Stream Chat
   const { data, isFetching, isError, isSuccess } = useQuery({
     queryKey: ["stream-users", searchInputDebounced],
-    queryFn: async () =>
-      client.queryUsers(
+    queryFn: async () => {
+      const response = await client.queryUsers(
         {
           id: { $ne: loggedInUser.id },
           role: { $ne: "admin" },
@@ -54,23 +52,34 @@ export default function NewChatDialog({
               }
             : {}),
         },
-        { name: 1, username: 1 },
-        { limit: 15 },
-      ),
+        { id: 1, name: 1, username: 1, image: 1, online: 1 }, // 🔹 Select the "online" field as well
+        { limit: 15 }
+      );
+      console.log("Fetched Users:", response.users);
+      return response;
+    },
   });
 
+  // 🔹 Ensure Unique Users and Filter Only Online Users
+  const uniqueUsers = data?.users
+    ? Array.from(new Map(data.users.map((u) => [u.id, u])).values()).filter(
+        (u) => u.online === true
+      )
+    : [];
+
+  // 🔹 Mutation to Create a New Chat
   const mutation = useMutation({
     mutationFn: async () => {
+      const memberIds = [loggedInUser.id, ...selectedUsers.map((u) => u.id)];
+      const memberNames = selectedUsers.map((u) => u.name).join(", ");
+  
       const channel = client.channel("messaging", {
-        members: [loggedInUser.id, ...selectedUsers.map((u) => u.id)],
-        name:
-          selectedUsers.length > 1
-            ? loggedInUser.displayName +
-              ", " +
-              selectedUsers.map((u) => u.name).join(", ")
-            : undefined,
+        members: memberIds,
+        name: selectedUsers.length > 1 ? memberNames : undefined, // Ensure name is set
       });
+  
       await channel.create();
+  
       return channel;
     },
     onSuccess: (channel) => {
@@ -85,6 +94,7 @@ export default function NewChatDialog({
       });
     },
   });
+  
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
@@ -110,7 +120,7 @@ export default function NewChatDialog({
                   user={user}
                   onRemove={() => {
                     setSelectedUsers((prev) =>
-                      prev.filter((u) => u.id !== user.id),
+                      prev.filter((u) => u.id !== user.id)
                     );
                   }}
                 />
@@ -120,7 +130,7 @@ export default function NewChatDialog({
           <hr />
           <div className="h-96 overflow-y-auto">
             {isSuccess &&
-              data.users.map((user) => (
+              uniqueUsers.map((user) => (
                 <UserResult
                   key={user.id}
                   user={user}
@@ -129,12 +139,12 @@ export default function NewChatDialog({
                     setSelectedUsers((prev) =>
                       prev.some((u) => u.id === user.id)
                         ? prev.filter((u) => u.id !== user.id)
-                        : [...prev, user],
+                        : [...prev, user]
                     );
                   }}
                 />
               ))}
-            {isSuccess && !data.users.length && (
+            {isSuccess && !uniqueUsers.length && (
               <p className="my-3 text-center text-muted-foreground">
                 No users found. Try a different name.
               </p>

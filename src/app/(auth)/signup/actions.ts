@@ -14,7 +14,7 @@ export async function signUp(
   credentials: SignUpValues,
 ): Promise<{ error?: string }> {
   try {
-    const { username, memberNumber, email, password, state } = signUpSchema.parse(credentials);
+    const { username, fullName, nin, phoneNumber, memberNumber, email, password, state, signature } = signUpSchema.parse(credentials);
 
     const passwordHash = await hash(password, {
       memoryCost: 19456,
@@ -25,50 +25,19 @@ export async function signUp(
 
     const userId = generateIdFromEntropySize(10);
 
-    // Check for existing users
-    const existingUsername = await prisma.user.findFirst({
+    // Check if username, email, or NIN already exist
+    const existingUser = await prisma.user.findFirst({
       where: {
-        username: {
-          equals: username,
-          mode: "insensitive",
-        },
+        OR: [
+          { username: { equals: username, mode: "insensitive" } },
+          { email: { equals: email, mode: "insensitive" } },
+          { nin: { equals: nin, mode: "insensitive" } }
+        ],
       },
     });
 
-    if (existingUsername) {
-      return {
-        error: "Username already taken",
-      };
-    }
-
-    const existingMemberNumber = await prisma.user.findFirst({
-      where: {
-        memberNumber: {
-          equals: memberNumber,
-          mode: "insensitive",
-        },
-      },
-    });
-
-    if (existingMemberNumber) {
-      return {
-        error: "Member already exists",
-      };
-    }
-
-    const existingEmail = await prisma.user.findFirst({
-      where: {
-        email: {
-          equals: email,
-          mode: "insensitive",
-        },
-      },
-    });
-
-    if (existingEmail) {
-      return {
-        error: "Email already taken",
-      };
+    if (existingUser) {
+      return { error: "Username, email, or NIN already exists" };
     }
 
     await prisma.$transaction(async (tx) => {
@@ -76,16 +45,21 @@ export async function signUp(
         data: {
           id: userId,
           username,
+          fullName, // ✅ Store full name
+          nin, // ✅ Store NIN
+          phoneNumber, // ✅ Store phone number
           memberNumber,
           displayName: username,
           email,
           passwordHash,
           state,
+          signature, // ✅ Store signature if provided
           status: "PENDING",
           role: "MEMBER",
+          dateRegistered: new Date(), // ✅ Auto-set registration date
         },
       });
-      
+
       await streamServerClient.upsertUser({
         id: userId,
         username,
@@ -103,11 +77,10 @@ export async function signUp(
       sessionCookie.attributes,
     );
 
-    return { error: undefined }; // Ensure no redirection here
+    return { error: undefined }; 
   } catch (error) {
     console.error(error);
-    return {
-      error: "Something went wrong. Please try again.",
-    };
+    return { error: "Something went wrong. Please try again." };
   }
 }
+  

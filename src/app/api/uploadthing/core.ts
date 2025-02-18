@@ -11,15 +11,14 @@ export const fileRouter = {
     image: { maxFileSize: "512KB" },
   })
     .middleware(async () => {
-      const { user } = await validateRequest();
+      const { user } = await validateRequest().catch(() => ({ user: null })); // ✅ Allow unauthenticated users
 
-      if (!user) throw new UploadThingError("Unauthorized");
-
-      return { user };
+      return { user }; // ✅ Pass user if logged in, otherwise null
     })
     .onUploadComplete(async ({ metadata, file }) => {
-      const oldAvatarUrl = metadata.user.avatarUrl;
+      if (!metadata.user) return { avatarUrl: file.url }; // ✅ Just return the uploaded file for unauthenticated users
 
+      const oldAvatarUrl = metadata.user.avatarUrl;
       if (oldAvatarUrl) {
         const key = oldAvatarUrl.split(
           `/a/${process.env.NEXT_PUBLIC_UPLOADTHING_APP_ID}/`,
@@ -50,16 +49,14 @@ export const fileRouter = {
 
       return { avatarUrl: newAvatarUrl };
     }),
+
   attachment: f({
     image: { maxFileSize: "4MB", maxFileCount: 5 },
     video: { maxFileSize: "64MB", maxFileCount: 5 },
   })
     .middleware(async () => {
-      const { user } = await validateRequest();
-
-      if (!user) throw new UploadThingError("Unauthorized");
-
-      return {};
+      // ✅ Don't block uploads, allow unauthenticated users
+      return {}; 
     })
     .onUploadComplete(async ({ file }) => {
       const media = await prisma.media.create({

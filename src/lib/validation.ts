@@ -3,17 +3,26 @@ import { z } from "zod";
 const requiredString = z.string().trim().min(1, "Required");
 
 export const signUpSchema = z.object({
+  fullName: requiredString.min(3, "Full name must be at least 3 characters"),
+  nin: requiredString.regex(/^\d{11}$/, "NIN must be exactly 11 digits"), // Only 11-digit numbers
+  phoneNumber: requiredString.regex(
+    /^\+?\d{10,15}$/,
+    "Invalid phone number format"
+  ),
   email: requiredString.email("Invalid email address"),
   memberNumber: requiredString.regex(
-    /^[a-zA-Z0-9_-]+$/,
-    "Only letters, numbers, - and _ allowed"
+    /^[a-zA-Z0-9_/-]+$/,
+    "Only letters, numbers, /, - and _ allowed"
   ),
+  
   username: requiredString.regex(
     /^[a-zA-Z0-9_-]+$/,
     "Only letters, numbers, - and _ allowed"
   ),
   password: requiredString.min(8, "Must be at least 8 characters"),
-  state: requiredString.min(2, "State must be at least 2 characters"), // Add state validation
+  state: requiredString.min(2, "State must be at least 2 characters"), // State validation
+  signature: z.string().optional(), // Optional signature (Base64 or URL)
+  dateRegistered: z.date().optional(), // Optional date (default to now)
 });
 
 export type SignUpValues = z.infer<typeof signUpSchema>;

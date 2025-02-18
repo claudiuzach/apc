@@ -46,6 +46,12 @@ model User {
   attendees             Attendee[] 
   eventBookmarks        EventBookmark[] // New field for event bookmarks
 
+ // ✅ NEW FIELDS ADDED
+  nin                   String?        @unique  // National Insurance Number
+  fullName              String?        
+  phoneNumber           String?        
+  signature             String?        // Store as a base64 or URL reference
+  dateRegistered        DateTime       @default(now()) // Registration date
   createdAt DateTime @default(now())
 
   @@map("users")

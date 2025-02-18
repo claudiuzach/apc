@@ -89,6 +89,19 @@ export default async function MenuBar({ className }: MenuBarProps) {
           </Link>
         </Button>
 
+        <Button
+          variant="ghost"
+          className="flex items-center justify-start gap-3"
+          title="Events"
+          asChild
+        >
+          <Link href="/certificates">
+            <Clipboard />
+            <span className="hidden lg:inline">Membership</span>
+          </Link>
+        </Button>
+
+
         {/* Add Approvals link for admins */}
         {user.role === "ADMIN" && (
           <Button
@@ -99,7 +112,7 @@ export default async function MenuBar({ className }: MenuBarProps) {
           >
             <Link href="/approvals">
               <Clipboard />
-              <span className="hidden lg:inline">Approvals</span>
+              <span className="hidden lg:inline">Approvals & Analytics</span>
             </Link>
           </Button>
         )}
