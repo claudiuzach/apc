@@ -21,6 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Loader2 } from 'lucide-react';
+import NigeriaMap from '@/components/NigeriaMap';
 
 interface User {
   id: string;
@@ -141,76 +142,135 @@ export default function ApprovalsPage() {
   if (loading) return <div className="text-center text-lg font-semibold">Loading...</div>;
 
   return (
-    <div className="p-4">
+    <div className="p-4 max-w-[1200px] mx-auto">
       <h1 className="text-3xl font-bold mb-6 text-center text-gray-900 dark:text-white">Approvals & User Analytics</h1>
 
-      {/* Approvals Table */}
-      <div className="mb-10">
-        <h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-white">User Approvals</h2>
-        <div className="overflow-x-auto bg-card rounded-lg shadow-lg p-4">
-          <Table className="w-full">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Username</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>State</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map(user => (
-                <TableRow key={user.id} className="hover:bg-muted">
-                  <TableCell>{user.username}</TableCell>
-                  <TableCell>{user.email || 'N/A'}</TableCell>
-                  <TableCell>{user.state || 'N/A'}</TableCell>
-                  <TableCell>
+      {/* ✅ MOBILE VERSION - User Approvals as Cards */}
+      <div className="block md:hidden">
+        {users.map(user => (
+          <div key={user.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg mb-4">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">{user.username}</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-300">Email: {user.email || "N/A"}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-300">State: {user.state || "N/A"}</p>
+
+            <div className="mt-2">
+              <label className="block text-sm font-semibold">Status:</label>
+              <select
+                value={updatedUsers[user.id]?.status || user.status}
+                onChange={e => handleChange(user.id, e.target.value as UserStatus, user.role)}
+                className="w-full p-2 border rounded bg-background text-foreground"
+              >
+                <option value={UserStatus.ACTIVE}>Active</option>
+                <option value={UserStatus.PENDING}>Pending</option>
+                <option value={UserStatus.REJECTED}>Rejected</option>
+              </select>
+            </div>
+
+            <div className="mt-2">
+              <Button onClick={() => handleSaveChanges(user.id)} disabled={savingUser === user.id} className="w-full">
+                {savingUser === user.id ? <Loader2 className="animate-spin size-4" /> : "Save"}
+              </Button>
+              <Button variant="destructive" onClick={() => setUserToDelete(user)} className="w-full mt-2">
+                Delete
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ✅ DESKTOP VERSION - Approvals Table */}
+      <div className="hidden md:block overflow-x-auto bg-card rounded-lg shadow-lg p-4">
+        <Table className="w-full">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Username</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>State</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead className="text-center">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {users.map(user => (
+              <TableRow key={user.id}>
+                <TableCell>{user.username}</TableCell>
+                <TableCell>{user.email || "N/A"}</TableCell>
+                <TableCell>{user.state || "N/A"}</TableCell>
+                
+                <TableCell>
                     <select
                       value={updatedUsers[user.id]?.status || user.status}
                       onChange={e => handleChange(user.id, e.target.value as UserStatus, user.role)}
                       className="border rounded p-1 w-full bg-background text-foreground"
                     >
-                      <option value={UserStatus.ACTIVE}>Accept</option>
+                      <option value={UserStatus.ACTIVE}>Active Members</option>
                       <option value={UserStatus.PENDING}>Pending</option>
                       <option value={UserStatus.REJECTED}>Rejected</option>
                     </select>
                   </TableCell>
-                  <TableCell className="capitalize">{user.role.toLowerCase()}</TableCell>
-                  <TableCell className="text-right">
-                    <Button onClick={() => handleSaveChanges(user.id)} disabled={savingUser === user.id}>
-                      {savingUser === user.id ? <Loader2 className="animate-spin size-4" /> : 'Save'}
-                    </Button>
-                    <Button variant="destructive" onClick={() => setUserToDelete(user)}>
-                      Delete
-                    </Button>
+                  <TableCell>
+                    <select
+                      value={updatedUsers[user.id]?.role || user.role}
+                      onChange={e => handleChange(user.id, user.status, e.target.value as UserRole)}
+                      className="border rounded p-1 w-full bg-background text-foreground"
+                    >
+                      <option value={UserRole.ADMIN}>Admin</option>
+                      <option value={UserRole.MEMBER}>Member</option>
+                      <option value={UserRole.STATE_MANAGER}>State Manager</option>
+                    </select>
                   </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-
-      {/* Members by State Table */}
-      <h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-white">Number of Members by State</h2>
-      <div className="overflow-x-auto bg-card rounded-lg shadow-lg p-4">
-        <Table className="w-full">
-          <TableHeader>
-            <TableRow>
-              <TableHead>State</TableHead>
-              <TableHead className="text-right">Total Members</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {stateCounts.map(state => (
-              <TableRow key={state.state}>
-                <TableCell>{state.state}</TableCell>
-                <TableCell className="text-right">{state.count}</TableCell>
+                <TableCell className="text-right">
+                <Button className='mr-2' onClick={() => handleSaveChanges(user.id)} disabled={savingUser === user.id} >
+                {savingUser === user.id ? <Loader2 className="animate-spin size-4" /> : "Save"}
+              </Button>                  
+              <Button variant="destructive" onClick={() => setUserToDelete(user)}>Delete</Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+      </div>
+
+      {/* ✅ Members by State Table */}
+<h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-white mt-10">Number of Members by State</h2>
+
+{/* ✅ Mobile Version (Card Layout) */}
+<div className="block md:hidden mt-5">
+  {stateCounts.map((state) => (
+    <div key={state.state} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg mb-4">
+      <h3 className="text-lg font-bold text-gray-900 dark:text-white">{state.state}</h3>
+      <p className="text-sm text-gray-600 dark:text-gray-300">
+        <span className="font-semibold">Total Members:</span> {state.count}
+      </p>
+    </div>
+  ))}
+</div>
+
+{/* ✅ Desktop Version (Table Layout) */}
+<div className="hidden md:block overflow-x-auto bg-card rounded-lg shadow-lg p-4">
+  <Table className="w-full">
+    <TableHeader>
+      <TableRow>
+        <TableHead>State</TableHead>
+        <TableHead className="text-right">Total Members</TableHead>
+      </TableRow>
+    </TableHeader>
+    <TableBody>
+      {stateCounts.map((state) => (
+        <TableRow key={state.state}>
+          <TableCell>{state.state}</TableCell>
+          <TableCell className="text-right">{state.count}</TableCell>
+        </TableRow>
+      ))}
+    </TableBody>
+  </Table>
+</div>
+
+
+      {/* ✅ Nigeria Map */}
+      <div className="overflow-hidden">
+        <NigeriaMap stateCounts={stateCounts} />
       </div>
     </div>
   );
