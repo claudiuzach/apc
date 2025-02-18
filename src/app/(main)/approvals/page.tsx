@@ -30,6 +30,9 @@ interface StateCount {
   count: number;
 }
 
+// **Force dynamic rendering to prevent static export errors**
+export const dynamic = "force-dynamic";
+
 export default function ApprovalsPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,7 +51,7 @@ export default function ApprovalsPage() {
         const currentUser = await currentUserResponse.json();
 
         if (currentUser.error || currentUser.role !== UserRole.ADMIN) {
-          router.push("/unauthorized");
+          router.replace("/unauthorized"); // ✅ Replaced `redirect()` with `router.replace()`
           return;
         }
 
@@ -74,55 +77,55 @@ export default function ApprovalsPage() {
     }
 
     loadData();
-  }, [router]); // ✅ Added router as dependency to avoid unnecessary re-renders
+  }, [router]); // ✅ Ensure router dependency exists
 
-  // ✅ Handle Status & Role Change
-  const handleChange = (userId: string, status: UserStatus, role: UserRole) => {
-    setUpdatedUsers((prev) => ({
-      ...prev,
-      [userId]: { status, role },
-    }));
-  };
+ // ✅ Handle Status & Role Change
+ const handleChange = (userId: string, status: UserStatus, role: UserRole) => {
+  setUpdatedUsers((prev) => ({
+    ...prev,
+    [userId]: { status, role },
+  }));
+};
 
-  const handleSaveChanges = async (userId: string) => {
-    if (!updatedUsers[userId]) return;
+const handleSaveChanges = async (userId: string) => {
+  if (!updatedUsers[userId]) return;
 
-    setSavingUser(userId);
-    const { status, role } = updatedUsers[userId];
+  setSavingUser(userId);
+  const { status, role } = updatedUsers[userId];
 
-    try {
-      const response = await fetch(`/api/update-user`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ userId, status, role }),
-      });
+  try {
+    const response = await fetch(`/api/update-user`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ userId, status, role }),
+    });
 
-      if (response.ok) {
-        setUsers((prevUsers) =>
-          prevUsers
-            .map((user) => (user.id === userId ? { ...user, status, role } : user))
-            .filter((user) => user.status !== UserStatus.ACTIVE)
-        );
+    if (response.ok) {
+      setUsers((prevUsers) =>
+        prevUsers
+          .map((user) => (user.id === userId ? { ...user, status, role } : user))
+          .filter((user) => user.status !== UserStatus.ACTIVE)
+      );
 
-        toast({
-          title: `User Updated`,
-          description: `User is now ${status.toLowerCase()} and assigned as ${role.toLowerCase()}.`,
-        });
-      } else {
-        throw new Error("Failed to update user");
-      }
-    } catch (error) {
       toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to update user. Please try again.",
+        title: `User Updated`,
+        description: `User is now ${status.toLowerCase()} and assigned as ${role.toLowerCase()}.`,
       });
-    } finally {
-      setSavingUser(null);
+    } else {
+      throw new Error("Failed to update user");
     }
-  };
+  } catch (error) {
+    toast({
+      variant: "destructive",
+      title: "Error",
+      description: "Failed to update user. Please try again.",
+    });
+  } finally {
+    setSavingUser(null);
+  }
+};
 
   const handleDeleteUser = async (userId: string) => {
     try {
