@@ -15,15 +15,16 @@ export async function GET(req: Request) {
     const users = await prisma.user.findMany({
       where: {
         id: { not: loggedInUserId }, // Exclude logged-in user
-        status: "ACTIVE", // Only show active users
+        status: "ACTIVE",  // ✅ Ensure this status exists in your database
       },
       select: {
         id: true,
         username: true,
-        displayName: true,  // ✅ FIXED: Ensure `displayName` is included
-        avatarUrl: true,    // ✅ Ensure avatarUrl is included
+        displayName: true,
+        avatarUrl: true,
       },
     });
+    
 
     console.log("✅ Users found:", users);
     return NextResponse.json({ users });

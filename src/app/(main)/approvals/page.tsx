@@ -23,6 +23,7 @@ import {
 import { Loader2 } from 'lucide-react';
 import NigeriaMap from '@/components/NigeriaMap';
 import dynamic from 'next/dynamic';
+import { Input } from '@/components/ui/input';
 
 interface User {
   id: string;
@@ -37,6 +38,8 @@ interface StateCount {
   state: string;
   count: number;
 }
+
+const PAGE_SIZE = 15;
 
 async function fetchUsers(): Promise<User[]> {
   const response = await fetch('/api/users');
@@ -75,6 +78,12 @@ export default function ApprovalsPage() {
   const { toast } = useToast();
   const [stateCounts, setStateCounts] = useState<StateCount[]>([]);
   const [mounted, setMounted] = useState(false);
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
+  const [searchUser, setSearchUser] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [filteredStates, setFilteredStates] = useState<StateCount[]>([]);
+  const [searchState, setSearchState] = useState('');
+  const [currentStatePage, setCurrentStatePage] = useState(1);
 
 // ✅ Disable SSR for the entire map
 const DynamicNigeriaMap = dynamic(() => import("@/components/NigeriaMap"), {
@@ -112,6 +121,9 @@ const DynamicNigeriaMap = dynamic(() => import("@/components/NigeriaMap"), {
 
         setStateCounts(statesData);
         setUsers(usersData.filter((user: User) => user.status === UserStatus.PENDING || user.status === UserStatus.REJECTED));
+        setFilteredUsers(usersData);
+        setStateCounts(statesData);
+        setFilteredStates(statesData);
       } catch (error) {
         console.error('Error loading data:', error);
       } finally {
@@ -169,6 +181,37 @@ const DynamicNigeriaMap = dynamic(() => import("@/components/NigeriaMap"), {
     }
   };
 
+  // ✅ Filter States and Reset Pagination
+  useEffect(() => {
+    if (!searchUser.trim()) {
+      setFilteredUsers(users);
+    } else {
+      const filtered = users.filter(user =>
+        user.username.toLowerCase().includes(searchUser.toLowerCase())
+      );
+      setFilteredUsers(filtered);
+    }
+    setCurrentPage(1); // Reset pagination to first page on search
+  }, [searchUser, users]);
+
+  
+  useEffect(() => {
+    const filtered = stateCounts.filter(state =>
+      state.state.toLowerCase().includes(searchState.toLowerCase())
+    );
+    setFilteredStates(filtered);
+    setCurrentStatePage(1); // ✅ Reset page to 1
+  }, [searchState, stateCounts]);
+
+  // ✅ Paginate Users
+  const totalUserPages = Math.ceil(filteredUsers.length / PAGE_SIZE);
+  const paginatedUsers = filteredUsers.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  // ✅ Paginate States
+  const totalStatePages = Math.ceil(filteredStates.length / PAGE_SIZE);
+  const paginatedStates = filteredStates.slice((currentStatePage - 1) * PAGE_SIZE, currentStatePage * PAGE_SIZE);
+
+  
   if (!mounted || loading) {
     return <p className="text-center text-lg font-semibold">Loading...</p>;
   }
@@ -211,6 +254,13 @@ onChange={e => handleChange(user.id, e.target.value as UserStatus, user.role)}
 
       {/* ✅ DESKTOP VERSION - Approvals Table */}
       <div className="hidden md:block overflow-x-auto bg-card rounded-lg shadow-lg p-4">
+         {/* ✅ Search Users */}
+      <Input
+        className="mb-4"
+        placeholder="Search users..."
+        value={searchUser}
+        onChange={e => setSearchUser(e.target.value)}
+      />
         <Table className="w-full">
           <TableHeader>
             <TableRow>
@@ -223,16 +273,17 @@ onChange={e => handleChange(user.id, e.target.value as UserStatus, user.role)}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users.map(user => (
-              <TableRow key={user.id}>
+          {paginatedUsers.length > 0 ? (
+              paginatedUsers.map(user => (
+                <TableRow key={user.id}>
                 <TableCell>{user.username}</TableCell>
                 <TableCell>{user.email || "N/A"}</TableCell>
                 <TableCell>{user.state || "N/A"}</TableCell>
                 
                 <TableCell>
                     <select
-value={updatedUsers[user.id]?.status || user.status || UserStatus.PENDING}
-onChange={e => handleChange(user.id, e.target.value as UserStatus, user.role)}
+                      value={updatedUsers[user.id]?.status || user.status || UserStatus.PENDING}
+                      onChange={e => handleChange(user.id, e.target.value as UserStatus, user.role)}
                       className="border rounded p-1 w-full bg-background text-foreground"
                     >
                       <option value={UserStatus.ACTIVE}>Active Members</option>
@@ -258,13 +309,33 @@ onChange={e => handleChange(user.id, e.target.value as UserStatus, user.role)}
               <Button variant="destructive" onClick={() => setUserToDelete(user)}>Delete</Button>
                 </TableCell>
               </TableRow>
-            ))}
+           ))
+          ) : (
+            <TableRow>
+              <TableCell colSpan={3} className="text-center text-gray-500">
+                No results found
+              </TableCell>
+            </TableRow>
+          )}
           </TableBody>
         </Table>
+        {/* ✅ User Pagination */}
+        {filteredUsers.length > PAGE_SIZE && (
+          <div className="flex justify-between mt-4">
+            <Button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)}>
+              Previous
+            </Button>
+            <span>Page {currentPage} of {totalUserPages}</span>
+            <Button disabled={currentPage === totalUserPages} onClick={() => setCurrentPage(prev => prev + 1)}>
+              Next
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* ✅ Members by State Table */}
 <h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-white mt-10">Number of Members by State</h2>
+
 
 {/* ✅ Mobile Version (Card Layout) */}
 <div className="block md:hidden mt-5">
@@ -280,6 +351,13 @@ onChange={e => handleChange(user.id, e.target.value as UserStatus, user.role)}
 
 {/* ✅ Desktop Version (Table Layout) */}
 <div className="hidden md:block overflow-x-auto bg-card rounded-lg shadow-lg p-4">
+  {/* ✅ Search States */}
+  <Input
+        className="mt-8 mb-4"
+        placeholder="Search states..."
+        value={searchState}
+        onChange={e => setSearchState(e.target.value)}
+      />
   <Table className="w-full">
     <TableHeader>
       <TableRow>
@@ -288,14 +366,34 @@ onChange={e => handleChange(user.id, e.target.value as UserStatus, user.role)}
       </TableRow>
     </TableHeader>
     <TableBody>
-      {stateCounts.map((state) => (
-        <TableRow key={state.state}>
+    {paginatedStates.length > 0 ? (
+    paginatedStates.map((state) => (
+      <TableRow key={state.state}>
           <TableCell>{state.state}</TableCell>
           <TableCell className="text-right">{state.count}</TableCell>
         </TableRow>
-      ))}
+     ))
+    ) : (
+      <TableRow>
+        <TableCell colSpan={2} className="text-center text-gray-500">
+          No results found
+        </TableCell>
+      </TableRow>
+    )}
     </TableBody>
   </Table>
+  {/* ✅ Pagination Controls */}
+  {filteredStates.length > PAGE_SIZE && (
+          <div className="flex justify-between mt-4">
+            <Button disabled={currentStatePage === 1} onClick={() => setCurrentStatePage(prev => prev - 1)}>
+              Previous
+            </Button>
+            <span>Page {currentStatePage} of {totalStatePages}</span>
+            <Button disabled={currentStatePage === totalStatePages} onClick={() => setCurrentStatePage(prev => prev + 1)}>
+              Next
+            </Button>
+          </div>
+        )}
 </div>
 
 

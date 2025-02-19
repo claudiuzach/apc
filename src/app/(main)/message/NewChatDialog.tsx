@@ -31,55 +31,55 @@ export default function NewChatDialog({
 
   const [searchInput, setSearchInput] = useState("");
   const searchInputDebounced = useDebounce(searchInput);
-  const [selectedUsers, setSelectedUsers] = useState<
-    UserResponse<DefaultStreamChatGenerics>[]
-  >([]);
+  const [selectedUsers, setSelectedUsers] = useState<UserResponse<DefaultStreamChatGenerics>[]>([]);
 
-  // 🔹 Fetch Users from Stream Chat
-  const { data, isFetching, isError, isSuccess } = useQuery({
-    queryKey: ["stream-users", searchInputDebounced],
-    queryFn: async () => {
-      const response = await client.queryUsers(
-        {
-          id: { $ne: loggedInUser.id },
-          role: { $ne: "admin" },
-          ...(searchInputDebounced
-            ? {
-                $or: [
-                  { name: { $autocomplete: searchInputDebounced } },
-                  { username: { $autocomplete: searchInputDebounced } },
-                ],
-              }
-            : {}),
-        },
-        { id: 1, name: 1, username: 1, image: 1, online: 1 }, // 🔹 Select the "online" field as well
-        { limit: 15 }
-      );
-      console.log("Fetched Users:", response.users);
-      return response;
-    },
-  });
+  // ✅ Fix: Explicitly define data type as `UserResponse<DefaultStreamChatGenerics>[]`
+  const { data: users = [], isFetching, isError, isSuccess } = useQuery<
+  UserResponse<DefaultStreamChatGenerics>[]
+>({
+  queryKey: ["filtered-users", searchInputDebounced, loggedInUser.id],
+  queryFn: async () => {
+    // 1️⃣ Define a proper type for the database response
+    interface DBUser {
+      id: string;
+      username: string;
+      displayName?: string;
+      avatarUrl?: string;
+    }
 
-  // 🔹 Ensure Unique Users and Filter Only Online Users
-  const uniqueUsers = data?.users
-    ? Array.from(new Map(data.users.map((u) => [u.id, u])).values()).filter(
-        (u) => u.online === true
-      )
-    : [];
+    // 2️⃣ Fetch active users from your database
+    const dbResponse = await fetch(`/api/users/check-user-exists?userId=${loggedInUser.id}`);
+    if (!dbResponse.ok) throw new Error("Failed to fetch database users");
 
-  // 🔹 Mutation to Create a New Chat
+    const { users: dbUsers }: { users: DBUser[] } = await dbResponse.json(); // ✅ Fix: Explicit type
+
+    console.log("✅ Active Users from Database:", dbUsers);
+
+    // 3️⃣ Cross-check users with Stream Chat
+    const chatResponse = await client.queryUsers(
+      { id: { $in: dbUsers.map((user: DBUser) => user.id) } }, // ✅ Fix: Explicitly type `user`
+      { id: 1, name: 1, username: 1, image: 1, online: 1 },
+      { limit: 15 }
+    );
+
+    console.log("✅ Matched Users in Stream Chat:", chatResponse.users);
+    return chatResponse.users;
+  },
+});
+
+
   const mutation = useMutation({
     mutationFn: async () => {
-      const memberIds = [loggedInUser.id, ...selectedUsers.map((u) => u.id)];
-      const memberNames = selectedUsers.map((u) => u.name).join(", ");
-  
       const channel = client.channel("messaging", {
-        members: memberIds,
-        name: selectedUsers.length > 1 ? memberNames : undefined, // Ensure name is set
+        members: [loggedInUser.id, ...selectedUsers.map((u) => u.id)],
+        name:
+          selectedUsers.length > 1
+            ? loggedInUser.displayName +
+              ", " +
+              selectedUsers.map((u) => u.name).join(", ")
+            : undefined,
       });
-  
       await channel.create();
-  
       return channel;
     },
     onSuccess: (channel) => {
@@ -94,7 +94,6 @@ export default function NewChatDialog({
       });
     },
   });
-  
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
@@ -130,7 +129,7 @@ export default function NewChatDialog({
           <hr />
           <div className="h-96 overflow-y-auto">
             {isSuccess &&
-              uniqueUsers.map((user) => (
+              users.map((user) => ( // ✅ Fix: Use `users` directly (not `users.users`)
                 <UserResult
                   key={user.id}
                   user={user}
@@ -144,7 +143,7 @@ export default function NewChatDialog({
                   }}
                 />
               ))}
-            {isSuccess && !uniqueUsers.length && (
+            {isSuccess && users.length === 0 && (
               <p className="my-3 text-center text-muted-foreground">
                 No users found. Try a different name.
               </p>
