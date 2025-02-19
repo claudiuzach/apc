@@ -44,14 +44,14 @@ export default function MembershipCertificate() {
     }
 
     try {
-      // ✅ Use html2canvas for better compatibility
+      // ✅ Use html2canvas for cross-browser support
       const canvas = await html2canvas(badgeElement, { scale: 3 });
       const imageData = canvas.toDataURL("image/png");
 
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "px",
-        format: [canvas.width * 0.5, canvas.height * 0.5], // Scale to fit PDF
+        format: [canvas.width * 0.5, canvas.height * 0.5], // Scale PDF properly
       });
 
       pdf.addImage(imageData, "PNG", 0, 0, canvas.width * 0.5, canvas.height * 0.5);
@@ -63,7 +63,7 @@ export default function MembershipCertificate() {
       // ✅ iOS Safari Fix
       if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
         setTimeout(() => {
-          window.open(pdfURL, "_blank");
+          window.open(pdfURL, "_blank"); // ✅ Opens in a new tab instead of download
         }, 500);
       } else {
         const link = document.createElement("a");
@@ -74,7 +74,7 @@ export default function MembershipCertificate() {
         document.body.removeChild(link);
       }
 
-      // ✅ Cleanup
+      // ✅ Cleanup after download
       setTimeout(() => {
         URL.revokeObjectURL(pdfURL);
       }, 1000);
@@ -83,7 +83,8 @@ export default function MembershipCertificate() {
     }
 
     setPdfGenerating(false);
-  };
+};
+
 
   return (
     <div className="flex flex-col items-center w-full">
