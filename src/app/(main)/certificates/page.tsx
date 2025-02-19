@@ -35,16 +35,22 @@ export default function MembershipCertificate() {
   if (loading) return <p className="text-center text-gray-500">Loading user data...</p>;
   if (!user) return <p className="text-center text-red-500">User not found.</p>;
 
-const generatePDF = async () => {
+  const generatePDF = async () => {
     setPdfGenerating(true);
-
+  
+    if (typeof window === "undefined") {
+      console.error("Window is not available. This function should only run on the client.");
+      setPdfGenerating(false);
+      return;
+    }
+  
     const badgeElement = badgeRef.current;
     if (!badgeElement) {
       console.error("Badge ref is null, cannot generate PDF.");
       setPdfGenerating(false);
       return;
     }
-
+  
     try {
       const scale = 3;
       const options = {
@@ -61,13 +67,13 @@ const generatePDF = async () => {
           clipPath: "inset(0 round 16px)",
         },
       };
-
+  
       const blob = await domtoimage.toBlob(badgeElement, options);
       const reader = new FileReader();
-
+  
       reader.onloadend = () => {
         if (!reader.result) return;
-
+  
         const width = badgeElement.clientWidth * 0.9;
         const height = badgeElement.clientHeight * 0.9;
         const pdf = new jsPDF({
@@ -75,42 +81,41 @@ const generatePDF = async () => {
           unit: "px",
           format: [width, height],
         });
-
+  
         pdf.addImage(reader.result as string, "PNG", 0, 0, width, height);
-
+  
         // ✅ Convert PDF to Blob
         const pdfBlob = pdf.output("blob");
         const pdfURL = URL.createObjectURL(pdfBlob);
-
-        // ✅ Create a download link
-        const link = document.createElement("a");
-        link.href = pdfURL;
-        link.download = `Membership_Badge_${user.fullName}.pdf`;
-
-        // 🔹 **Fix for iPhone Safari**
+  
+        // ✅ Instead of using <a> tag, directly open the file
         if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
           setTimeout(() => {
             window.open(pdfURL, "_blank"); // Opens in a new tab
           }, 500);
         } else {
+          const link = document.createElement("a");
+          link.href = pdfURL;
+          link.download = `Membership_Badge_${user.fullName}.pdf`;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
         }
-
+  
         // ✅ Cleanup the blob URL
         setTimeout(() => {
           URL.revokeObjectURL(pdfURL);
         }, 1000);
       };
-
+  
       reader.readAsDataURL(blob);
     } catch (error) {
       console.error("Error generating PDF:", error);
     }
-
+  
     setPdfGenerating(false);
-};
+  };
+  
 
   
 
