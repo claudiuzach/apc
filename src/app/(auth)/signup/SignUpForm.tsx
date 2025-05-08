@@ -126,25 +126,26 @@ export default function SignUpForm() {
       await startUpload([file]);
     }
   };
-
+  const fullName = form.watch("fullName");
+  const state = form.watch("state");
+  
   useEffect(() => {
     const updateMemberNumber = async () => {
-      const { fullName, state } = form.getValues();
       if (fullName && state) {
         const generatedNumber = await generateMemberNumber(fullName, state);
         form.setValue("memberNumber", generatedNumber);
       }
     };
   
-    const timeout = setTimeout(updateMemberNumber, 500); // Debounce input by 500ms
-  
-    const interval = setInterval(updateMemberNumber, 10000); // Refresh every 10s
+    const timeout = setTimeout(updateMemberNumber, 500);
+    const interval = setInterval(updateMemberNumber, 10000);
   
     return () => {
       clearTimeout(timeout);
       clearInterval(interval);
     };
-  }, [form.watch("fullName"), form.watch("state")]);
+  }, [fullName, state]);
+  
   
 
   async function onSubmit(values: SignUpValues) {
@@ -188,8 +189,8 @@ export default function SignUpForm() {
             }}
             className="w-full"
           >
-            ✅ Yes, I'm an existing member
-          </Button>
+"Yes, I'm an existing member"
+</Button>
           <Button
             variant="outline"
             onClick={() => {
