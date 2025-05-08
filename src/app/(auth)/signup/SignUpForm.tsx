@@ -189,7 +189,7 @@ export default function SignUpForm() {
             }}
             className="w-full"
           >
-"Yes, I'm an existing member"
+Yes, I&rsquo;m an existing member
 </Button>
           <Button
             variant="outline"
