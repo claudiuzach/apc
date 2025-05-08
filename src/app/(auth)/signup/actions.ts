@@ -14,7 +14,7 @@ export async function signUp(
   credentials: SignUpValues,
 ): Promise<{ error?: string }> {
   try {
-    const { username, fullName, nin, phoneNumber, memberNumber, email, password, state, signature } = signUpSchema.parse(credentials);
+    const { username, fullName, nin, phoneNumber, memberNumber, email, password, state, signature,gender, dateOfBirth, ward, localGovernment, existingMember,} = signUpSchema.parse(credentials);
 
     const passwordHash = await hash(password, {
       memoryCost: 19456,
@@ -50,6 +50,11 @@ export async function signUp(
           phoneNumber, // ✅ Store phone number
           memberNumber,
           displayName: username,
+          gender,
+    dateOfBirth,
+    ward,
+    localGovernment,
+    existingMember,
           email,
           passwordHash,
           state,

@@ -1,7 +1,15 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import SignatureCanvas from "react-signature-canvas";
+import { signUpSchema, SignUpValues } from "@/lib/validation";
+import { signUp } from "./actions";
 import LoadingButton from "@/components/LoadingButton";
 import { PasswordInput } from "@/components/PasswordInput";
+import { useUploadThing } from "@/lib/uploadthing";
+
 import {
   Form,
   FormControl,
@@ -10,15 +18,9 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+
 import { Input } from "@/components/ui/input";
-import { signUpSchema, SignUpValues } from "@/lib/validation";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useState, useRef, useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { signUp } from "./actions";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import SignatureCanvas from "react-signature-canvas";
-import { useUploadThing } from "@/lib/uploadthing";
+import { Button } from "@/components/ui/button";
 
 // 🔹 List of Nigerian States & their abbreviations
 const STATES = [
@@ -62,6 +64,7 @@ const STATES = [
 ];
 
 export default function SignUpForm() {
+  const [step, setStep] = useState(1);
   const [error, setError] = useState<string | undefined>(undefined);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -77,37 +80,36 @@ export default function SignUpForm() {
       email: "",
       password: "",
       state: "",
-      memberNumber: "", // Editable member number
-      signature: "", // Base64 signature data
+      memberNumber: "",
+      signature: "",
+      existingMember: undefined,
+      gender: undefined,           
+      ward: "",                     
+      localGovernment: "",    
+      dateOfBirth: undefined, // ➕ Add this line
+      
     },
   });
 
-  // 🔹 Generate Membership Number
   const generateMemberNumber = async (fullName: string, state: string) => {
     if (!fullName || !state) return "";
-
     const stateAbbr = STATES.find((s) => s.name === state)?.code || "XX";
     const namePart = fullName.substring(0, 2).toUpperCase();
     const today = new Date();
     const day = String(today.getDate()).padStart(2, "0");
     const month = String(today.getMonth() + 1).padStart(2, "0");
-    const year = String(today.getFullYear()).slice(-2); // Get last 2 digits of year
+    const year = String(today.getFullYear()).slice(-2);
     const datePart = `${day}${month}${year}`;
-
-    // Fetch latest membership number from our new API
     const lastUserResponse = await fetch("/api/last-user-number");
     const lastNumber = await lastUserResponse.json();
     const nextNumber = lastNumber ? lastNumber : 1;
-
     return `${stateAbbr}/${namePart}/${datePart}${String(nextNumber).padStart(4, "0")}`;
   };
 
-
-  // ✅ Upload Signature with UploadThing
   const { startUpload } = useUploadThing("attachment", {
     onClientUploadComplete(res) {
       if (res.length > 0) {
-        form.setValue("signature", res[0].serverData.mediaId); // Save uploaded signature URL
+        form.setValue("signature", res[0].serverData.mediaId);
       }
     },
     onUploadError(e) {
@@ -117,164 +119,231 @@ export default function SignUpForm() {
 
   const handleSignatureUpload = async (fullName: string) => {
     if (signatureRef.current && !signatureRef.current.isEmpty()) {
-      try {
-        const canvas = signatureRef.current.getCanvas();
-        if (!canvas) {
-          console.error("Canvas is not available.");
-          return;
-        }
-        const signatureData = canvas.toDataURL("image/png");
-  
-        // Convert base64 to File
-        const blob = await fetch(signatureData).then((res) => res.blob());
-        const file = new File([blob], `${fullName.replace(/\s+/g, "_")}_signature.png`, { type: "image/png" });
-  
-        // Upload File
-        await startUpload([file]);
-      } catch (error) {
-        console.error("Error processing signature: ", error);
-      }
+      const canvas = signatureRef.current.getCanvas();
+      const signatureData = canvas.toDataURL("image/png");
+      const blob = await fetch(signatureData).then((res) => res.blob());
+      const file = new File([blob], `${fullName.replace(/\s+/g, "_")}_signature.png`, { type: "image/png" });
+      await startUpload([file]);
     }
   };
-  
- // 🔹 useEffect - Run Only Every 10 Seconds
-useEffect(() => {
-  const interval = setInterval(() => {
-    const { fullName, state } = form.getValues();
-    if (fullName && state) {
-      generateMemberNumber(fullName, state).then((generatedNumber) => {
+
+  useEffect(() => {
+    const updateMemberNumber = async () => {
+      const { fullName, state } = form.getValues();
+      if (fullName && state) {
+        const generatedNumber = await generateMemberNumber(fullName, state);
         form.setValue("memberNumber", generatedNumber);
-      });
+      }
+    };
+  
+    const timeout = setTimeout(updateMemberNumber, 500); // Debounce input by 500ms
+  
+    const interval = setInterval(updateMemberNumber, 10000); // Refresh every 10s
+  
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
+  }, [form.watch("fullName"), form.watch("state")]);
+  
+
+  async function onSubmit(values: SignUpValues) {
+    setError(undefined);
+    setIsLoading(true);
+
+    if (signatureRef.current && !signatureRef.current.isEmpty()) {
+      try {
+        const canvas = signatureRef.current.getCanvas();
+        values.signature = canvas.toDataURL("image/png");
+        await handleSignatureUpload(values.fullName);
+      } catch (error) {
+        setError("Failed to process signature.");
+        setIsLoading(false);
+        return;
+      }
     }
-  }, 10000); // ✅ Run every 10 seconds
 
-  return () => clearInterval(interval);
-}, [form]);
-
-async function onSubmit(values: SignUpValues) {
-  setError(undefined);
-  setIsLoading(true);
-
-  // ✅ Ensure signature is not empty before converting it
-  if (signatureRef.current && !signatureRef.current.isEmpty()) {
-    try {
-      const canvas = signatureRef.current.getCanvas(); // ✅ Correct function
-      values.signature = canvas.toDataURL("image/png"); // ✅ Convert to Base64
-
-      // ✅ Upload Signature Before Submitting Form
-      await handleSignatureUpload(values.fullName);
-    } catch (error) {
-      console.error("Error processing signature: ", error);
-      setError("Failed to process signature. Please try again.");
-      setIsLoading(false);
-      return;
+    const result = await signUp(values);
+    if (result.error) {
+      setError(result.error);
+    } else {
+      setIsSuccess(true);
+      form.reset();
+      signatureRef.current?.clear();
     }
+
+    setIsLoading(false);
   }
 
-  const result = await signUp(values);
-
-  if (result.error) {
-    setError(result.error);
-  } else {
-    setIsSuccess(true);
-    form.reset();
-    if (signatureRef.current) {
-      signatureRef.current.clear();
-    }
+  // 🔹 STEP 1: Existing Member Choice
+  if (step === 1) {
+    return (
+      <div className="max-w-md mx-auto text-center space-y-6">
+        <h2 className="text-xl font-semibold">Are you an existing member?</h2>
+        <div className="flex flex-col gap-4">
+          <Button
+            onClick={() => {
+              form.setValue("existingMember", true);
+              setStep(2);
+            }}
+            className="w-full"
+          >
+            ✅ Yes, I'm an existing member
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              form.setValue("existingMember", false);
+              setStep(2);
+            }}
+            className="w-full"
+          >
+            🚀 No, I’m a new member
+          </Button>
+        </div>
+      </div>
+    );
   }
 
-  setIsLoading(false);
-}
-
-
+  // 🔹 STEP 2: Form
   return (
-    <>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-          {error && <p className="text-center text-destructive">{error}</p>}
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        {error && <p className="text-red-600 text-center">{error}</p>}
 
-          <FormField name="username" control={form.control} render={({ field }) => (
-            <FormItem>
-              <FormLabel>Username</FormLabel>
-              <FormControl><Input placeholder="Username" {...field} /></FormControl>
-              <FormMessage />
-            </FormItem>
-          )} />
-          <FormField name="email" control={form.control} render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl><Input type="email" {...field} /></FormControl>
-              <FormMessage />
-            </FormItem>
-          )} />
+        <FormField name="username" control={form.control} render={({ field }) => (
+          <FormItem>
+            <FormLabel>Username</FormLabel>
+            <FormControl><Input {...field} /></FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
 
-          <FormField name="password" control={form.control} render={({ field }) => (
-            <FormItem>
-              <FormLabel>Password</FormLabel>
-              <FormControl><PasswordInput {...field} /></FormControl>
-              <FormMessage />
-            </FormItem>
-          )} />
+        <FormField name="email" control={form.control} render={({ field }) => (
+          <FormItem>
+            <FormLabel>Email</FormLabel>
+            <FormControl><Input type="email" {...field} /></FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
 
-          <FormField name="fullName" control={form.control} render={({ field }) => (
-            <FormItem>
-              <FormLabel>Full Name</FormLabel>
-              <FormControl><Input placeholder="Full Name" {...field} /></FormControl>
-              <FormMessage />
-            </FormItem>
-          )} />
+        <FormField name="password" control={form.control} render={({ field }) => (
+          <FormItem>
+            <FormLabel>Password</FormLabel>
+            <FormControl><PasswordInput {...field} /></FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
+
+        <FormField name="fullName" control={form.control} render={({ field }) => (
+          <FormItem>
+            <FormLabel>Full Name</FormLabel>
+            <FormControl><Input {...field} /></FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
 
         <FormField name="nin" control={form.control} render={({ field }) => (
-            <FormItem>
-              <FormLabel>National Insurance Number</FormLabel>
-              <FormControl><Input placeholder="NIN" {...field} /></FormControl>
-              <FormMessage />
-            </FormItem>
-          )} />
+          <FormItem>
+            <FormLabel>NIN</FormLabel>
+            <FormControl><Input {...field} /></FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
 
         <FormField name="phoneNumber" control={form.control} render={({ field }) => (
-            <FormItem>
-              <FormLabel>Phone Number</FormLabel>
-              <FormControl><Input placeholder="Enter your phone number" {...field} /></FormControl>
-              <FormMessage />
-            </FormItem>
-          )} />
+          <FormItem>
+            <FormLabel>Phone Number</FormLabel>
+            <FormControl><Input {...field} /></FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
 
-          <FormField name="state" control={form.control} render={({ field }) => (
-            <FormItem>
-              <FormLabel>State</FormLabel>
-              <FormControl>
-                <select {...field} className="w-full p-2 border rounded bg-background text-foreground">
-                  {STATES.map((state) => (
-                    <option key={state.code} value={state.name}>{state.name}</option>
-                  ))}
-                </select>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )} />
+<FormField name="dateOfBirth" control={form.control} render={({ field }) => (
+  <FormItem>
+    <FormLabel>Date of Birth</FormLabel>
+    <FormControl>
+      <Input
+        type="date"
+        {...field}
+        value={field.value ? new Date(field.value).toISOString().split("T")[0] : ""}
+        onChange={(e) => field.onChange(new Date(e.target.value))}
+        max={new Date().toISOString().split("T")[0]} // Prevent future dates
+      />
+    </FormControl>
+    <FormMessage />
+  </FormItem>
+)} />
 
-          <FormField name="memberNumber" control={form.control} render={({ field }) => (
-            <FormItem>
-              <FormLabel>Membership Number</FormLabel>
-              <FormControl><Input {...field} /></FormControl>
-              <FormMessage />
-            </FormItem>
-          )} />
 
-            <FormField name="signature" control={form.control} render={() => (
-            <FormItem>
-              <FormLabel>Signature</FormLabel>
-              <SignatureCanvas ref={signatureRef} canvasProps={{ className: "border w-full h-24" }} />
-              <button type="button" onClick={() => signatureRef.current?.clear()} className="text-sm text-blue-500">
-                Clear
-              </button>
-            </FormItem>
-          )} />
+<FormField name="gender" control={form.control} render={({ field }) => (
+  <FormItem>
+    <FormLabel>Gender</FormLabel>
+    <FormControl>
+      <select {...field} className="w-full p-2 border rounded bg-background text-foreground">
+        <option value="">Select Gender</option>
+        <option value="Male">Male</option>
+        <option value="Female">Female</option>
+        <option value="Other">Other</option>
+      </select>
+    </FormControl>
+    <FormMessage />
+  </FormItem>
+)} />
 
-          <LoadingButton loading={isLoading} type="submit" className="w-full">Create Account</LoadingButton>
-        </form>
-      </Form>
-    </>
+<FormField name="ward" control={form.control} render={({ field }) => (
+  <FormItem>
+    <FormLabel>Ward</FormLabel>
+    <FormControl><Input {...field} /></FormControl>
+    <FormMessage />
+  </FormItem>
+)} />
+
+<FormField name="localGovernment" control={form.control} render={({ field }) => (
+  <FormItem>
+    <FormLabel>Local Government</FormLabel>
+    <FormControl><Input {...field} /></FormControl>
+    <FormMessage />
+  </FormItem>
+)} />
+
+
+        <FormField name="state" control={form.control} render={({ field }) => (
+          <FormItem>
+            <FormLabel>State</FormLabel>
+            <FormControl>
+              <select {...field} className="w-full p-2 border rounded bg-background text-foreground">
+                {STATES.map((state) => (
+                  <option key={state.code} value={state.name}>{state.name}</option>
+                ))}
+              </select>
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
+
+        <FormField name="memberNumber" control={form.control} render={({ field }) => (
+          <FormItem>
+            <FormLabel>Member Number</FormLabel>
+            <FormControl><Input {...field} readOnly /></FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
+
+        <FormField name="signature" control={form.control} render={() => (
+          <FormItem>
+            <FormLabel>Signature</FormLabel>
+            <SignatureCanvas ref={signatureRef} canvasProps={{ className: "border w-full h-24" }} />
+            <button type="button" onClick={() => signatureRef.current?.clear()} className="text-sm text-blue-500 mt-1">
+              Clear
+            </button>
+          </FormItem>
+        )} />
+
+        <LoadingButton loading={isLoading} type="submit" className="w-full">
+          Create Account
+        </LoadingButton>
+      </form>
+    </Form>
   );
 }

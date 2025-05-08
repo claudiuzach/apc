@@ -53,6 +53,11 @@ model User {
   signature             String?        // Store as a base64 or URL reference
   dateRegistered        DateTime       @default(now()) // Registration date
   createdAt DateTime @default(now())
+  gender                String?
+  dateOfBirth          DateTime?
+  ward                 String?
+  localGovernment      String?
+  existingMember       Boolean?
 
   @@map("users")
 }

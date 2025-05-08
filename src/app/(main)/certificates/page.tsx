@@ -87,24 +87,29 @@ export default function MembershipCertificate() {
         // ✅ Convert PDF to Blob
         const pdfBlob = pdf.output("blob");
         const pdfURL = URL.createObjectURL(pdfBlob);
+
+        
   
         if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-          // Convert Blob to Base64 for iOS
+          setTimeout(() => {
+            window.location.href = pdfURL; // ✅ Open the file in the same window (forces iOS to show the file)
+          }, 500);
           const reader = new FileReader();
           reader.onloadend = () => {
-            const base64data = reader.result;
-            if (typeof base64data === "string") {
-              const anchor = document.createElement("a");
-              anchor.href = base64data;
-              anchor.download = `Membership_Badge_${user.fullName}.pdf`;
-              document.body.appendChild(anchor);
-              anchor.click();
-              document.body.removeChild(anchor);
-            }
+            const base64data = reader.result as string;
+            
+            // ✅ Fix: Open in a new tab (some iOS versions require this)
+            const anchor = document.createElement("a");
+            anchor.href = base64data;
+            anchor.download = `Membership_Badge_${user.fullName}.pdf`;
+        
+            document.body.appendChild(anchor);
+            anchor.click();
+            document.body.removeChild(anchor);
           };
           reader.readAsDataURL(pdfBlob);
         } else {
-          // Normal download for non-iOS devices
+          // ✅ Normal download for desktop and Android
           const link = document.createElement("a");
           link.href = pdfURL;
           link.download = `Membership_Badge_${user.fullName}.pdf`;
@@ -112,6 +117,7 @@ export default function MembershipCertificate() {
           link.click();
           document.body.removeChild(link);
         }
+        
   
         // ✅ Cleanup the blob URL
         setTimeout(() => {

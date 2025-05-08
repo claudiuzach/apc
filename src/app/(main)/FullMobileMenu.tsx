@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bookmark, Clipboard, Home, MapPin, X } from "lucide-react";
+import { Bookmark, Clipboard, Home, MapPin, Wallet, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils"; // Import a helper for handling dark mode
 
@@ -40,6 +40,12 @@ export default function FullMobileMenu({ isAdmin }: { isAdmin: boolean }) {
           <Clipboard className="w-8 h-8" />
           Events
         </Link>
+
+          {/* ✅ Donate */}
+  <Link href="/donate" className={cn("flex items-center gap-4 text-lg font-semibold text-gray-800 dark:text-gray-100")}>
+    <Wallet className="w-8 h-8" />
+    Donate
+  </Link>
 
         {isAdmin && (
           <Link href="/approvals" className={cn("flex items-center gap-4 text-lg font-semibold text-gray-800 dark:text-gray-100")}>

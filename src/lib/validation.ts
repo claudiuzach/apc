@@ -23,6 +23,21 @@ export const signUpSchema = z.object({
   state: requiredString.min(2, "State must be at least 2 characters"), // State validation
   signature: z.string().optional(), // Optional signature (Base64 or URL)
   dateRegistered: z.date().optional(), // Optional date (default to now)
+  gender: z.enum(["Male", "Female", "Other"]),
+  dateOfBirth: z.coerce.date().refine((date) => {
+    const now = new Date();
+    const age = now.getFullYear() - date.getFullYear();
+    const monthDiff = now.getMonth() - date.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < date.getDate())) {
+      return age - 1 >= 18;
+    }
+    return age >= 18;
+  }, {
+    message: "You must be at least 18 years old."
+  }),
+  ward: z.string().min(2),
+  localGovernment: z.string().min(2),
+  existingMember: z.boolean(),
 });
 
 export type SignUpValues = z.infer<typeof signUpSchema>;

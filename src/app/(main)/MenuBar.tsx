@@ -2,7 +2,7 @@ import { validateRequest } from "@/auth";
 import { Button } from "@/components/ui/button";
 import prisma from "@/lib/prisma";
 import streamServerClient from "@/lib/stream";
-import { Bookmark, Clipboard, Home, MapPin } from "lucide-react"; // Import the MapPin icon
+import { Bookmark, Clipboard, Home, MapPin, Wallet } from "lucide-react"; // Import the MapPin icon
 import Link from "next/link";
 import MessagesButton from "./MessagesButton";
 import NotificationsButton from "./NotificationsButton";
@@ -88,6 +88,19 @@ export default async function MenuBar({ className }: MenuBarProps) {
             <span className="hidden lg:inline">Events</span>
           </Link>
         </Button>
+
+        <Button
+  variant="ghost"
+  className="flex items-center justify-start gap-3"
+  title="Donate"
+  asChild
+>
+  <Link href="/donate">
+    <Wallet />
+    <span className="hidden lg:inline">Donate</span>
+  </Link>
+</Button>
+
 
         <Button
           variant="ghost"
